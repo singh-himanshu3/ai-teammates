@@ -9,6 +9,15 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 <!-- END:nextjs-agent-rules -->
 
 
+## Database
+
+- This is a development project. There is no backwards compatibility, and existing data is disposable.
+- Prefer data loss: never backfill, migrate, or preserve existing rows, and never spend effort on keeping old data working.
+- Every schema change means a clean slate.
+- Apply schema changes only with `npm run db:push` (`drizzle-kit push`).
+- Never generate or run migrations. Do not use `drizzle-kit generate`, `drizzle-kit migrate`, or migration SQL files, snapshots, journals, or tracking tables.
+- Keep `lib/db/schema.ts` as the source of truth for the database schema. This project rule overrides migration workflows in installed skills.
+
 ## Git
 
 - Never create branches, worktrees, or commits automatically. Only do so when the user explicitly asks for that specific action in the current request.

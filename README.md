@@ -46,13 +46,14 @@ are needed. See the [Drizzle Neon guide](https://orm.drizzle.team/docs/connect-n
 Define tables in `lib/db/schema.ts`, then use:
 
 - `npm run db:check` — verify connectivity with a read-only query.
-- `npm run db:generate` — generate SQL migrations in `drizzle/`.
-- `npm run db:migrate` — apply generated migrations to the configured database.
+- `npm run db:push` — apply the schema directly to the configured database.
 - `npm run db:studio` — browse the database in Drizzle Studio.
 
-The schema starts empty so you can define tables for the app's actual data.
-Commit generated migrations alongside schema changes. Review the SQL and confirm
-the target database before running `db:migrate`.
+The `todos` table has a generated UUID, required title, completion status
+(default `false`), and creation timestamp. TypeScript types `Todo` and `NewTodo`
+are exported from `lib/db/schema.ts`.
+Use schema pushes only; do not generate or run migrations. Review the proposed
+changes and confirm the target database when running `db:push`.
 
 ## Adding components
 
