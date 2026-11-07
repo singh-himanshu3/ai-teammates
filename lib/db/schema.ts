@@ -1,13 +1,26 @@
-import { boolean, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core"
+import { index, pgTable, text, timestamp } from "drizzle-orm/pg-core"
+import { nanoid } from "nanoid"
 
-export const todos = pgTable("todos", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  title: text("title").notNull(),
-  completed: boolean("completed").default(false).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .defaultNow()
-    .notNull(),
-})
+export const bots = pgTable(
+  "bots",
+  {
+    id: text("id")
+      .$defaultFn(() => nanoid())
+      .primaryKey(),
+    userId: text("user_id").notNull(),
+    name: text("name").notNull(),
+    avatar: text("avatar")
+      .$defaultFn(() => nanoid())
+      .notNull(),
+    job: text("job").notNull(),
+    instructions: text("instructions"),
+    sandboxId: text("sandbox_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [index("bots_user_id_idx").on(table.userId)]
+)
 
-export type Todo = typeof todos.$inferSelect
-export type NewTodo = typeof todos.$inferInsert
+export type Bot = typeof bots.$inferSelect
+export type NewBot = typeof bots.$inferInsert

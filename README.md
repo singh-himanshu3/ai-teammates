@@ -49,9 +49,10 @@ Define tables in `lib/db/schema.ts`, then use:
 - `npm run db:push` — apply the schema directly to the configured database.
 - `npm run db:studio` — browse the database in Drizzle Studio.
 
-The `todos` table has a generated UUID, required title, completion status
-(default `false`), and creation timestamp. TypeScript types `Todo` and `NewTodo`
-are exported from `lib/db/schema.ts`.
+The `bots` table stores an indexed external user ID, name, avatar seed, job,
+optional instructions and sandbox ID, and creation timestamp. Drizzle generates
+Nano IDs for the primary key and default avatar seed when inserting rows.
+TypeScript types `Bot` and `NewBot` are exported from `lib/db/schema.ts`.
 Use schema pushes only; do not generate or run migrations. Review the proposed
 changes and confirm the target database when running `db:push`.
 
