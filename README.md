@@ -22,6 +22,38 @@ Keep authorization checks next to private data, Route Handlers, and Server
 Actions as those are added. Clerk's provider and navigation alone do not protect
 new routes. See the [Clerk Next.js guide](https://clerk.com/docs/nextjs/getting-started/quickstart).
 
+## Database
+
+Drizzle ORM uses the Neon HTTP driver. The existing ignored `.env.local` supplies
+`DATABASE_URL` (pooled, for application queries) and `DATABASE_URL_UNPOOLED`
+(direct, for Drizzle Kit). Configure both variables in other environments too.
+Drizzle Kit loads `.env*` files using Next.js's environment loader.
+
+Import `db` from `@/lib/db` in Server Components, Server Actions, or Route Handlers:
+
+```ts
+import { sql } from "drizzle-orm"
+import { db } from "@/lib/db"
+
+const result = await db.execute(sql`select 1 as connected`)
+```
+
+The database module is marked `server-only`. Keep Clerk authorization checks next
+to queries that access private data. The HTTP driver supports individual queries
+and batched transactions; use the WebSocket driver if interactive transactions
+are needed. See the [Drizzle Neon guide](https://orm.drizzle.team/docs/connect-neon).
+
+Define tables in `lib/db/schema.ts`, then use:
+
+- `npm run db:check` — verify connectivity with a read-only query.
+- `npm run db:generate` — generate SQL migrations in `drizzle/`.
+- `npm run db:migrate` — apply generated migrations to the configured database.
+- `npm run db:studio` — browse the database in Drizzle Studio.
+
+The schema starts empty so you can define tables for the app's actual data.
+Commit generated migrations alongside schema changes. Review the SQL and confirm
+the target database before running `db:migrate`.
+
 ## Adding components
 
 To add components to your app, run the following command:
