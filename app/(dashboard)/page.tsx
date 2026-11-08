@@ -18,7 +18,7 @@ export default async function Page() {
   const avatarSeed = randomUUID()
 
   return (
-    <main className="dark flex min-h-[calc(100svh-4rem)] bg-background text-foreground">
+    <main className="dark flex min-h-svh bg-background text-foreground">
       <Empty>
         <EmptyHeader>
           <ChatAvatar seed={avatarSeed} className="mb-4" />

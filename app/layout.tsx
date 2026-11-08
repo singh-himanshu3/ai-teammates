@@ -4,7 +4,6 @@ import { Geist, Geist_Mono } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { AuthNavigation } from "@/components/auth-navigation"
 import { DirectionProvider } from "@/components/ui/direction"
 import { Toaster as SonnerToaster } from "@/components/ui/sonner"
 import { Toaster } from "@/components/ui/toast"
@@ -48,7 +47,6 @@ export default function RootLayout({
             <DirectionProvider direction="ltr">
               <TooltipProvider>
                 <Toaster>
-                  <AuthNavigation />
                   {children}
                   <SonnerToaster />
                 </Toaster>
