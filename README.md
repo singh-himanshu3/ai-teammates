@@ -7,7 +7,7 @@ This is a Next.js template with shadcn/ui.
 Clerk manages sign-in, sign-up, sessions, and account settings. Run `npm run dev`
 and use **Create account** in the navigation to get started.
 
-- `/` is public.
+- `/` checks `await auth.protect()` on the server and requires a session.
 - `/sign-in` and `/sign-up` use Clerk's prebuilt authentication forms.
 - `/dashboard` checks `await auth.protect()` on the server and requires a session.
 - The account menu includes profile settings and sign out.
