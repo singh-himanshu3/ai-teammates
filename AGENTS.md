@@ -18,6 +18,20 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Never generate or run migrations. Do not use `drizzle-kit generate`, `drizzle-kit migrate`, or migration SQL files, snapshots, journals, or tracking tables.
 - Keep `lib/db/schema.ts` as the source of truth for the database schema. This project rule overrides migration workflows in installed skills.
 
+## Forms
+
+- Use the shadcn skill for form UI, the Clerk skill for authenticated actions, and the Neon skill when forms read or write the database. Check the installed Next.js guides before implementing Server Actions.
+- Generate insert validation from tables in `lib/db/schema.ts` using `createInsertSchema` from `drizzle-zod`. Derive a form schema that explicitly picks editable fields, adds appropriate trimming and length limits, and exports its inferred TypeScript type. Reuse that schema on the client and server.
+- Use React Hook Form with `zodResolver` from `@hookform/resolvers/zod`. Provide explicit default values and use `Controller` to compose controlled inputs. Presets and shuffle controls must update form state with `setValue` and request validation and dirty-state tracking.
+- Compose forms with existing shadcn components: `FieldGroup`, `Field`, `FieldLabel`, `FieldError`, `Input`, and `Textarea`. Use `ToggleGroup` for preset choices. Read the relevant component docs and follow this project's Base UI `render` prop pattern for triggers and close buttons.
+- Put reusable dialog forms in `components/<resource>-dialog.tsx` and mutations in `actions/<resource>.ts` with `"use server"`. Wire the actual page button to the dialog trigger and the form submission to the action.
+- Authenticate inside every Server Action with Clerk, even when the page is protected. Obtain `userId` from `await auth.protect()` on the server. Never trust submitted ownership fields, IDs, timestamps, or other server-managed fields; validate an explicit editable-field subset before inserting.
+- Return structured validation and save errors from actions. Show field errors next to their inputs and submission errors inside the form. Preserve entered values on failure and close the dialog only after a successful save.
+- Use `formState.isSubmitting` to disable submission and conflicting controls, show a spinner and pending label, and prevent closing a dialog during a save. Revalidate the affected path after a successful mutation and show success feedback using the existing Base UI toast component.
+- Give dialog forms a title and description, associate labels with unique input IDs, set `data-invalid` on invalid fields and `aria-invalid` on their controls, and connect error messages with `aria-describedby`. Keep dialog content usable on small screens with bounded height and scrolling.
+- Verify validation boundaries, including whitespace-only required fields, length limits, and exclusion of server-managed fields. Run typecheck, relevant lint and formatting checks, and a production build for a new form flow. Report browser or authenticated save checks as unverified unless actually exercised.
+- Adding validation does not change the database schema by itself. Apply actual table changes only through `npm run db:push`, following the database rules above.
+
 ## Git
 
 - Never create branches, worktrees, or commits automatically. Only do so when the user explicitly asks for that specific action in the current request.
