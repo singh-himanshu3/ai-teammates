@@ -1,6 +1,12 @@
 "use client"
 
-import { useId, useState, type ReactElement } from "react"
+import {
+  useEffect,
+  useId,
+  useState,
+  type ComponentProps,
+  type ReactElement,
+} from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ShuffleIcon } from "lucide-react"
 import { Controller, useForm, useWatch } from "react-hook-form"
@@ -58,11 +64,19 @@ const presets = [
 export function BotDialog({
   children,
   seed,
+  open: controlledOpen,
+  onOpenChange,
+  finalFocus,
 }: {
-  children: ReactElement
+  children?: ReactElement
   seed: string
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"]
 }) {
-  const [open, setOpen] = useState(false)
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
   const id = useId()
   const form = useForm<CreateBotInput>({
     resolver: zodResolver(createBotSchema),
@@ -71,6 +85,17 @@ export function BotDialog({
   const avatar = useWatch({ control: form.control, name: "avatar" })
   const job = useWatch({ control: form.control, name: "job" })
   const pending = form.formState.isSubmitting
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        name: "",
+        job: "",
+        instructions: "",
+        avatar: crypto.randomUUID(),
+      })
+    }
+  }, [open, form])
 
   async function onSubmit(values: CreateBotInput) {
     form.clearErrors("root")
@@ -108,19 +133,14 @@ export function BotDialog({
       open={open}
       onOpenChange={(nextOpen) => {
         if (pending) return
-        if (nextOpen) {
-          form.reset({
-            name: "",
-            job: "",
-            instructions: "",
-            avatar: crypto.randomUUID(),
-          })
-        }
         setOpen(nextOpen)
       }}
     >
-      <DialogTrigger render={children} />
-      <DialogContent className="dark max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-[460px]">
+      {children && <DialogTrigger render={children} />}
+      <DialogContent
+        finalFocus={finalFocus}
+        className="dark max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-[460px]"
+      >
         <DialogHeader>
           <DialogTitle>New bot</DialogTitle>
           <DialogDescription>

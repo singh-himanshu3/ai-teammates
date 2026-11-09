@@ -1,17 +1,61 @@
 import { UserButton } from "@clerk/nextjs"
+import { formatDistanceToNowStrict } from "date-fns"
 import { Suspense } from "react"
+
+import { AppSidebarHeader } from "@/components/app-sidebar-header"
+import { ChatAvatar } from "@/components/chat-avatar"
+import { getUserChats } from "@/queries/bot"
 
 import {
   Sidebar,
+  SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-export function AppSidebar() {
+export async function AppSidebar() {
+  const chats = await getUserChats()
   return (
     <Sidebar>
+      <AppSidebarHeader />
+      <SidebarContent>
+        <SidebarGroup aria-label="Your chats">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {chats.map((chat) => (
+                <SidebarMenuItem key={chat.id}>
+                  <SidebarMenuButton size="lg">
+                    <ChatAvatar seed={chat.botAvatar ?? chat.id} />
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="flex min-w-0 items-baseline gap-2">
+                        <span className="truncate font-medium">
+                          {chat.name ?? chat.botName ?? "Untitled chat"}
+                        </span>
+                        <time
+                          dateTime={chat.createdAt.toISOString()}
+                          title={chat.createdAt.toISOString()}
+                          className="ml-auto shrink-0 text-xs text-muted-foreground"
+                        >
+                          {formatDistanceToNowStrict(chat.createdAt)}
+                        </time>
+                      </span>
+                      {chat.lastMessagePreview && (
+                        <span className="truncate text-xs text-muted-foreground">
+                          {chat.lastMessagePreview}
+                        </span>
+                      )}
+                    </span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
       <SidebarFooter className="mt-auto">
         <Suspense fallback={null}>
           <SidebarMenu>
