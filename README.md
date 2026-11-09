@@ -56,6 +56,26 @@ TypeScript types `Bot` and `NewBot` are exported from `lib/db/schema.ts`.
 Use schema pushes only; do not generate or run migrations. Review the proposed
 changes and confirm the target database when running `db:push`.
 
+## AI chat
+
+Chat pages use AI Elements and the AI SDK's `useChat` hook with the authenticated
+`POST /api/chat` route. Messages live in browser memory and reset when leaving the
+chat or refreshing. The route reads the bot's name, job, and instructions, but
+does not save messages.
+
+Set the keys for the providers you want to use in `.env.local` or your hosting
+environment (keys stay on the server):
+
+```dotenv
+GOOGLE_GENERATIVE_AI_API_KEY=...
+GROQ_API_KEY=...
+```
+
+The model dropdown defaults to Google (Gemini 3.6 Flash) and also offers Groq
+(GPT OSS 120B), using their direct SDK providers. The selected model is shown
+in the composer and highlighted with a checkmark in the dropdown. Model IDs
+are defined in `app/api/chat/route.ts`.
+
 ## Adding components
 
 To add components to your app, run the following command:
@@ -71,5 +91,5 @@ This will place the ui components in the `components` directory.
 To use the components in your app, import them as follows:
 
 ```tsx
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button"
 ```
