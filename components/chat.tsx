@@ -1,8 +1,21 @@
 "use client"
 
 import { useChat } from "@ai-sdk/react"
+import type { TriggerChatTransport } from "@trigger.dev/sdk/chat"
+import {
+  useLoadTranscript,
+  useTriggerChatTransport,
+} from "@trigger.dev/sdk/chat/react"
+import type { UIMessage } from "ai"
 import { SquareIcon } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
+
+import {
+  loadChatTranscript,
+  mintChatAccessToken,
+  startChatSession,
+} from "@/actions/chat"
+import type { teammateChat } from "@/trigger/chat"
 
 import {
   Conversation,
@@ -38,18 +51,86 @@ const providers = [
 ] as const
 
 export function Chat({ chatId }: { chatId: string }) {
+  const [provider, setProvider] = useState<"google" | "groq">("google")
+  const transport = useTriggerChatTransport<typeof teammateChat>({
+    task: "teammate-chat",
+    accessToken: ({ chatId }) => mintChatAccessToken(chatId),
+    startSession: ({ chatId, clientData }) =>
+      startChatSession({ chatId, clientData }),
+    clientData: { provider },
+  })
+  const transcript = useLoadTranscript(
+    chatId,
+    async (params) => {
+      const result = await loadChatTranscript(params)
+      if (result.publicAccessToken) {
+        transport.setSession(params.chatId, {
+          publicAccessToken: result.publicAccessToken,
+        })
+      }
+      return result
+    },
+    { transport }
+  )
+
+  if (transcript.isLoading) return <Spinner className="m-auto" />
+  if (transcript.error) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>
+          Could not load this conversation. Please reload to try again.
+        </AlertDescription>
+      </Alert>
+    )
+  }
+  return (
+    <ChatConversation
+      key={chatId}
+      chatId={chatId}
+      transport={transport}
+      initialMessages={transcript.messages}
+      provider={provider}
+      setProvider={setProvider}
+    />
+  )
+}
+
+function ChatConversation({
+  chatId,
+  transport,
+  initialMessages,
+  provider,
+  setProvider,
+}: {
+  chatId: string
+  transport: TriggerChatTransport
+  initialMessages: UIMessage[]
+  provider: "google" | "groq"
+  setProvider: (provider: "google" | "groq") => void
+}) {
   const [input, setInput] = useState("")
   const [editingMessageId, setEditingMessageId] = useState<string>()
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const [provider, setProvider] = useState<string>("google")
-  const { messages, sendMessage, status, stop, error, regenerate } = useChat({
+  const {
+    messages,
+    sendMessage,
+    status,
+    stop: stopLocal,
+    error,
+    regenerate,
+  } = useChat({
     id: chatId,
+    transport,
+    messages: initialMessages,
+    resume: initialMessages.length > 0,
   })
   const busy = status === "submitted" || status === "streaming"
 
   async function stopAndEdit() {
     const lastPrompt = messages.findLast((message) => message.role === "user")
-    await stop()
+    const stopped = stopLocal()
+    await transport.stopGeneration(chatId)
+    await stopped
     if (lastPrompt) {
       setInput(
         lastPrompt.parts
@@ -65,13 +146,6 @@ export function Chat({ chatId }: { chatId: string }) {
       textarea?.setSelectionRange(textarea.value.length, textarea.value.length)
     })
   }
-
-  useEffect(
-    () => () => {
-      void stop()
-    },
-    [stop]
-  )
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -123,7 +197,7 @@ export function Chat({ chatId }: { chatId: string }) {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => void regenerate({ body: { provider } })}
+                onClick={() => void regenerate()}
               >
                 Try again
               </Button>
@@ -133,10 +207,7 @@ export function Chat({ chatId }: { chatId: string }) {
         <PromptInput
           onSubmit={({ text }) => {
             if (busy || !text.trim()) return
-            void sendMessage(
-              { text: text.trim(), messageId: editingMessageId },
-              { body: { provider } }
-            )
+            void sendMessage({ text: text.trim(), messageId: editingMessageId })
             setEditingMessageId(undefined)
             setInput("")
           }}
@@ -157,7 +228,7 @@ export function Chat({ chatId }: { chatId: string }) {
               value={provider}
               disabled={busy}
               onValueChange={(value) => {
-                if (typeof value === "string") setProvider(value)
+                if (value === "google" || value === "groq") setProvider(value)
               }}
             >
               <PromptInputSelectTrigger aria-label="AI model" size="sm">
