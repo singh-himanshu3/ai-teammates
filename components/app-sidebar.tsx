@@ -1,10 +1,10 @@
 import { UserButton } from "@clerk/nextjs"
 import { formatDistanceToNowStrict } from "date-fns"
-import Link from "next/link"
 import { Suspense } from "react"
 
 import { AppSidebarHeader } from "@/components/app-sidebar-header"
 import { ChatAvatar } from "@/components/chat-avatar"
+import { SidebarChatLink } from "@/components/sidebar-chat-link"
 import { getUserChats } from "@/queries/bot"
 
 import {
@@ -37,14 +37,12 @@ export async function AppSidebar() {
             <SidebarMenu>
               {chats.map((chat) => (
                 <SidebarMenuItem key={chat.id}>
-                  <SidebarMenuButton
+                  <SidebarChatLink
                     size="lg"
                     tooltip={chat.name ?? chat.botName ?? "Untitled chat"}
                     aria-label={chat.name ?? chat.botName ?? "Untitled chat"}
                     className="group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0"
-                    render={
-                      <Link href={`/chats/${encodeURIComponent(chat.id)}`} />
-                    }
+                    href={`/chats/${encodeURIComponent(chat.id)}`}
                   >
                     <ChatAvatar
                       seed={chat.botAvatar ?? chat.id}
@@ -69,7 +67,7 @@ export async function AppSidebar() {
                         </span>
                       )}
                     </span>
-                  </SidebarMenuButton>
+                  </SidebarChatLink>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

@@ -10,9 +10,20 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod"
 import { ShuffleIcon } from "lucide-react"
 import { Controller, useForm, useWatch } from "react-hook-form"
+import { useRouter } from "next/navigation"
 
-import { createBot } from "@/actions/bot"
+import { createBot, deleteBot, updateBot } from "@/actions/bot"
 import { ChatAvatar } from "@/components/chat-avatar"
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -36,7 +47,12 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { createBotSchema, type CreateBotInput } from "@/lib/db/schema"
+import { createBotSchema, type Bot, type CreateBotInput } from "@/lib/db/schema"
+
+export type EditableBot = Pick<
+  Bot,
+  "id" | "name" | "avatar" | "job" | "instructions"
+>
 
 const presets = [
   {
@@ -67,41 +83,75 @@ export function BotDialog({
   open: controlledOpen,
   onOpenChange,
   finalFocus,
+  bot,
 }: {
   children?: ReactElement
   seed: string
   open?: boolean
   onOpenChange?: (open: boolean) => void
   finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"]
+  bot?: EditableBot
 }) {
+  const router = useRouter()
   const [internalOpen, setInternalOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const open = controlledOpen ?? internalOpen
   const setOpen = onOpenChange ?? setInternalOpen
   const id = useId()
+  const deleteForm = useForm({ defaultValues: {} })
   const form = useForm<CreateBotInput>({
     resolver: zodResolver(createBotSchema),
-    defaultValues: { name: "", job: "", instructions: "", avatar: seed },
+    defaultValues: {
+      name: bot?.name ?? "",
+      job: bot?.job ?? "",
+      instructions: bot?.instructions ?? "",
+      avatar: bot?.avatar ?? seed,
+    },
   })
   const avatar = useWatch({ control: form.control, name: "avatar" })
   const job = useWatch({ control: form.control, name: "job" })
-  const pending = form.formState.isSubmitting
+  const deleting = deleteForm.formState.isSubmitting
+  const pending = form.formState.isSubmitting || deleting
 
   useEffect(() => {
     if (open) {
       form.reset({
-        name: "",
-        job: "",
-        instructions: "",
-        avatar: crypto.randomUUID(),
+        name: bot?.name ?? "",
+        job: bot?.job ?? "",
+        instructions: bot?.instructions ?? "",
+        avatar: bot?.avatar ?? crypto.randomUUID(),
+      })
+      deleteForm.reset()
+    }
+  }, [open, form, bot, deleteForm])
+
+  async function onDelete() {
+    if (!bot) return
+    deleteForm.clearErrors("root")
+    try {
+      const result = await deleteBot(bot.id)
+      if (!result.success) {
+        deleteForm.setError("root", { message: result.error })
+        return
+      }
+      setConfirmDelete(false)
+      setOpen(false)
+      toast.add({ title: `${bot.name} was deleted.`, type: "success" })
+      router.replace("/")
+    } catch {
+      deleteForm.setError("root", {
+        message: "Your bot could not be deleted. Please try again.",
       })
     }
-  }, [open, form])
+  }
 
   async function onSubmit(values: CreateBotInput) {
     form.clearErrors("root")
 
     try {
-      const result = await createBot(values)
+      const result = bot
+        ? await updateBot(bot.id, values)
+        : await createBot(values)
 
       if (!result.success) {
         if (result.fieldErrors) {
@@ -120,10 +170,15 @@ export function BotDialog({
       }
 
       setOpen(false)
-      toast.add({ title: `${values.name} is ready.`, type: "success" })
+      toast.add({
+        title: bot ? `${values.name} was updated.` : `${values.name} is ready.`,
+        type: "success",
+      })
     } catch {
       form.setError("root", {
-        message: "Your bot could not be created. Please try again.",
+        message: bot
+          ? "Your bot could not be updated. Please try again."
+          : "Your bot could not be created. Please try again.",
       })
     }
   }
@@ -132,7 +187,7 @@ export function BotDialog({
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (pending) return
+        if (pending || confirmDelete) return
         setOpen(nextOpen)
       }}
     >
@@ -142,9 +197,11 @@ export function BotDialog({
         className="dark max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-[460px]"
       >
         <DialogHeader>
-          <DialogTitle>New bot</DialogTitle>
+          <DialogTitle>{bot ? "Edit bot" : "New bot"}</DialogTitle>
           <DialogDescription>
-            Give it a face, a name, and a job to do.
+            {bot
+              ? "Update its face, name, job, and instructions."
+              : "Give it a face, a name, and a job to do."}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -189,16 +246,23 @@ export function BotDialog({
               <div className="flex items-center gap-3">
                 <ChatAvatar seed={avatar} className="size-12" />
                 <div className="flex flex-1 flex-col gap-1">
-                  <span className="font-medium">Face</span>
+                  <FieldLabel htmlFor={`${id}-avatar`}>Face</FieldLabel>
                   <FieldDescription>
                     Shuffle until you find one you like.
                   </FieldDescription>
                 </div>
                 <Button
+                  id={`${id}-avatar`}
                   type="button"
                   variant="outline"
                   size="sm"
                   disabled={pending}
+                  aria-invalid={!!form.formState.errors.avatar}
+                  aria-describedby={
+                    form.formState.errors.avatar
+                      ? `${id}-avatar-error`
+                      : undefined
+                  }
                   onClick={() =>
                     form.setValue("avatar", crypto.randomUUID(), {
                       shouldValidate: true,
@@ -210,7 +274,10 @@ export function BotDialog({
                   Shuffle
                 </Button>
               </div>
-              <FieldError errors={[form.formState.errors.avatar]} />
+              <FieldError
+                id={`${id}-avatar-error`}
+                errors={[form.formState.errors.avatar]}
+              />
             </Field>
 
             <Controller
@@ -295,6 +362,60 @@ export function BotDialog({
           </FieldGroup>
           <FieldError errors={[form.formState.errors.root]} />
           <DialogFooter>
+            {bot && (
+              <AlertDialog
+                open={confirmDelete}
+                onOpenChange={(nextOpen) => {
+                  if (pending) return
+                  deleteForm.clearErrors("root")
+                  setConfirmDelete(nextOpen)
+                }}
+              >
+                <AlertDialogTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={pending}
+                      className="sm:mr-auto"
+                    />
+                  }
+                >
+                  Delete bot
+                </AlertDialogTrigger>
+                <AlertDialogContent className="dark max-h-[calc(100svh-2rem)] overflow-y-auto">
+                  <form
+                    onSubmit={(event) => {
+                      event.stopPropagation()
+                      void deleteForm.handleSubmit(onDelete)(event)
+                    }}
+                    className="flex flex-col gap-4"
+                  >
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete {bot.name}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This permanently deletes this bot and its direct chats,
+                        and removes it from group chats. This cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <FieldError errors={[deleteForm.formState.errors.root]} />
+                    <AlertDialogFooter>
+                      <AlertDialogCancel type="button" disabled={pending}>
+                        Cancel
+                      </AlertDialogCancel>
+                      <Button
+                        type="submit"
+                        variant="destructive"
+                        disabled={pending}
+                      >
+                        {deleting && <Spinner data-icon="inline-start" />}
+                        {deleting ? "Deleting bot…" : "Delete bot"}
+                      </Button>
+                    </AlertDialogFooter>
+                  </form>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
             <DialogClose
               render={
                 <Button type="button" variant="outline" disabled={pending} />
@@ -304,7 +425,13 @@ export function BotDialog({
             </DialogClose>
             <Button type="submit" disabled={pending}>
               {pending && <Spinner data-icon="inline-start" />}
-              {pending ? "Creating bot…" : "Create bot"}
+              {bot
+                ? form.formState.isSubmitting
+                  ? "Saving changes…"
+                  : "Save changes"
+                : pending
+                  ? "Creating bot…"
+                  : "Create bot"}
             </Button>
           </DialogFooter>
         </form>
