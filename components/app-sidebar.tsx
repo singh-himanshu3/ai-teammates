@@ -16,12 +16,13 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
 } from "@/components/ui/sidebar"
 
 export async function AppSidebar() {
   const chats = await getUserChats()
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <AppSidebarHeader
         chats={chats.map((chat) => ({
           id: chat.id,
@@ -30,7 +31,7 @@ export async function AppSidebar() {
           lastMessagePreview: chat.lastMessagePreview,
         }))}
       />
-      <SidebarContent>
+      <SidebarContent className="group-data-[collapsible=icon]:overflow-y-auto">
         <SidebarGroup aria-label="Your chats">
           <SidebarGroupContent>
             <SidebarMenu>
@@ -38,12 +39,18 @@ export async function AppSidebar() {
                 <SidebarMenuItem key={chat.id}>
                   <SidebarMenuButton
                     size="lg"
+                    tooltip={chat.name ?? chat.botName ?? "Untitled chat"}
+                    aria-label={chat.name ?? chat.botName ?? "Untitled chat"}
+                    className="group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0"
                     render={
                       <Link href={`/chats/${encodeURIComponent(chat.id)}`} />
                     }
                   >
-                    <ChatAvatar seed={chat.botAvatar ?? chat.id} />
-                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <ChatAvatar
+                      seed={chat.botAvatar ?? chat.id}
+                      className="group-data-[collapsible=icon]:size-6"
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
                       <span className="flex min-w-0 items-baseline gap-2">
                         <span className="truncate font-medium">
                           {chat.name ?? chat.botName ?? "Untitled chat"}
@@ -73,16 +80,16 @@ export async function AppSidebar() {
         <Suspense fallback={null}>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton render={<div />} className="p-0">
+              <SidebarMenuButton render={<div />} size="lg" className="h-8 p-0">
                 <UserButton
                   showName
                   appearance={{
                     elements: {
                       rootBox: "w-full! min-w-0!",
                       userButtonTrigger:
-                        "h-8! w-full! rounded-md! border-0! px-2! py-1! text-sidebar-foreground! shadow-none! outline-hidden! hover:bg-sidebar-accent! hover:text-sidebar-accent-foreground! focus-visible:ring-2! focus-visible:ring-sidebar-ring!",
+                        "h-8! w-full! rounded-md! border-0! px-2! py-1! text-sidebar-foreground! shadow-none! outline-hidden! hover:bg-sidebar-accent! hover:text-sidebar-accent-foreground! focus-visible:ring-2! focus-visible:ring-sidebar-ring! group-data-[collapsible=icon]:p-1!",
                       userButtonBox:
-                        "w-full! min-w-0! flex-row-reverse! justify-end! gap-2!",
+                        "w-full! min-w-0! flex-row-reverse! justify-end! gap-2! group-data-[collapsible=icon]:justify-center! group-data-[collapsible=icon]:gap-0!",
                       userButtonAvatarBox: "size-6! shrink-0!",
                       userButtonOuterIdentifier:
                         "truncate! p-0! text-sm! font-normal! text-inherit! group-data-[collapsible=icon]:hidden!",
@@ -94,6 +101,7 @@ export async function AppSidebar() {
           </SidebarMenu>
         </Suspense>
       </SidebarFooter>
+      <SidebarRail tabIndex={0} />
     </Sidebar>
   )
 }

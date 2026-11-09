@@ -101,12 +101,16 @@ export function AppSidebarHeader({ chats }: { chats: SearchChat[] }) {
           aria-haspopup="dialog"
           aria-expanded={searchOpen}
           aria-keyshortcuts={isMac ? "Meta+K" : "Control+K"}
+          title="Search chats"
           onClick={() => setSearchOpen(true)}
-          className="h-8 w-full min-w-0 justify-start rounded-lg border border-input bg-transparent px-2.5 py-1 text-base font-normal text-muted-foreground transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 has-data-[icon=inline-start]:pl-2.5 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
+          className="h-8 w-full min-w-0 justify-start rounded-lg border border-input bg-transparent px-2.5 py-1 text-base font-normal text-muted-foreground transition-colors outline-none group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:border-transparent group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0! group-data-[collapsible=icon]:text-sidebar-foreground file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground group-data-[collapsible=icon]:hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 has-data-[icon=inline-start]:pl-2.5 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:group-data-[collapsible=icon]:bg-transparent dark:group-data-[collapsible=icon]:hover:bg-muted/50 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
         >
           <SearchIcon data-icon="inline-start" />
-          Search
-          <KbdGroup className="ml-auto" aria-hidden="true">
+          <span className="group-data-[collapsible=icon]:hidden">Search</span>
+          <KbdGroup
+            className="ml-auto group-data-[collapsible=icon]:hidden"
+            aria-hidden="true"
+          >
             <Kbd>{isMac ? "⌘" : "Ctrl"}</Kbd>
             <Kbd>K</Kbd>
           </KbdGroup>
