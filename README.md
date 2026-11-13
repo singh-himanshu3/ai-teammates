@@ -58,10 +58,10 @@ changes and confirm the target database when running `db:push`.
 
 ## AI chat
 
-Chat pages use AI Elements and the AI SDK's `useChat` hook with the authenticated
-`POST /api/chat` route. Messages live in browser memory and reset when leaving the
-chat or refreshing. The route reads the bot's name, job, and instructions, but
-does not save messages.
+Chat pages use AI Elements and the AI SDK's `useChat` hook with a Trigger.dev
+chat transport. The `teammate-chat` agent persists conversation history and
+loads the bot's name, job, instructions, and sandbox relationship each turn.
+Authenticated Server Actions authorize session access and transcript loading.
 
 Set the keys for the providers you want to use in `.env.local` or your hosting
 environment (keys stay on the server):
@@ -74,7 +74,34 @@ GROQ_API_KEY=...
 The model dropdown defaults to Google (Gemini 3.6 Flash) and also offers Groq
 (GPT OSS 120B), using their direct SDK providers. The selected model is shown
 in the composer and highlighted with a checkmark in the dropdown. Model IDs
-are defined in `app/api/chat/route.ts`.
+are defined in `trigger/chat.ts`. Configure provider keys in the Trigger.dev
+worker environment as well.
+
+## Computer tools
+
+Set `DAYTONA_API_KEY` in the Trigger.dev worker environment. Tools operate only
+on the existing sandbox referenced by the bot's `sandboxId` in `lib/db/schema.ts`.
+Automatic sandbox creation remains deferred; a bot without an assignment reports
+that setup is needed. Assigned sandboxes start on demand. Desktop actions require
+a sandbox image with Daytona computer-use support.
+
+The agent can run Bash commands, read and write UTF-8 files, list directories,
+and control the desktop mouse and keyboard. Actions run sequentially, with up to
+20 model steps per turn. Commands have a maximum timeout of 120 seconds. Stopping
+generation skips queued actions, but an already submitted Daytona request may
+finish; command timeouts bound command execution.
+
+`viewScreen` supplies an image to the model without rendering its tool call or
+screenshot in chat. `showScreen` displays a screenshot when the user asks to see
+the screen. Private observations remain part of persisted agent history and are
+hidden during transcript replay. Gemini supports visual inspection; GPT OSS can
+display screenshots for the user but cannot inspect them.
+
+Run the mocked tool checks with:
+
+```bash
+node --experimental-strip-types --test scripts/computer-tools.test.mjs
+```
 
 ## Adding components
 

@@ -3,11 +3,13 @@
 import { useChat } from "@ai-sdk/react"
 import type { TriggerChatTransport } from "@trigger.dev/sdk/chat"
 import {
+  type InferChatUIMessage,
   useLoadTranscript,
   useTriggerChatTransport,
 } from "@trigger.dev/sdk/chat/react"
-import type { UIMessage } from "ai"
+import { getToolName, isToolUIPart } from "ai"
 import { SquareIcon } from "lucide-react"
+import Image from "next/image"
 import { useRef, useState } from "react"
 
 import {
@@ -28,6 +30,14 @@ import {
   MessageContent,
   MessageResponse,
 } from "@/components/ai-elements/message"
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolInput,
+  ToolOutput,
+  type ToolPart,
+} from "@/components/ai-elements/tool"
 import {
   PromptInput,
   PromptInputBody,
@@ -50,6 +60,8 @@ const providers = [
   { value: "groq", label: "GPT OSS 120B" },
 ] as const
 
+type ChatMessage = InferChatUIMessage<typeof teammateChat>
+
 export function Chat({ chatId }: { chatId: string }) {
   const [provider, setProvider] = useState<"google" | "groq">("google")
   const transport = useTriggerChatTransport<typeof teammateChat>({
@@ -59,7 +71,7 @@ export function Chat({ chatId }: { chatId: string }) {
       startChatSession({ chatId, clientData }),
     clientData: { provider },
   })
-  const transcript = useLoadTranscript(
+  const transcript = useLoadTranscript<ChatMessage>(
     chatId,
     async (params) => {
       const result = await loadChatTranscript(params)
@@ -104,7 +116,7 @@ function ChatConversation({
 }: {
   chatId: string
   transport: TriggerChatTransport
-  initialMessages: UIMessage[]
+  initialMessages: ChatMessage[]
   provider: "google" | "groq"
   setProvider: (provider: "google" | "groq") => void
 }) {
@@ -118,7 +130,7 @@ function ChatConversation({
     stop: stopLocal,
     error,
     regenerate,
-  } = useChat({
+  } = useChat<ChatMessage>({
     id: chatId,
     transport,
     messages: initialMessages,
@@ -160,8 +172,11 @@ function ChatConversation({
           {messages.map((message) => (
             <Message key={message.id} from={message.role}>
               <MessageContent>
-                {message.parts.map((part, index) =>
-                  part.type === "text" ? (
+                {message.parts.map((part, index) => {
+                  if (isToolUIPart(part)) {
+                    return <ChatTool key={part.toolCallId} part={part} />
+                  }
+                  return part.type === "text" ? (
                     <MessageResponse
                       key={index}
                       isAnimating={
@@ -172,7 +187,7 @@ function ChatConversation({
                       {part.text}
                     </MessageResponse>
                   ) : null
-                )}
+                })}
               </MessageContent>
             </Message>
           ))}
@@ -266,5 +281,71 @@ function ChatConversation({
         </PromptInput>
       </div>
     </div>
+  )
+}
+
+function ChatTool({ part }: { part: ToolPart }) {
+  const name = getToolName(part)
+  // Private observations stay hidden in every state, including transcript replay.
+  if (name === "viewScreen") return null
+
+  const titles: Record<string, string> = {
+    bash: "Run command",
+    readFile: "Read file",
+    writeFiles: "Write files",
+    listFiles: "List files",
+    mouseClick: "Click mouse",
+    mouseMove: "Move mouse",
+    mouseScroll: "Scroll",
+    keyboardType: "Type text",
+    keyboardPress: "Press key",
+    showScreen: "Show screen",
+  }
+  const output = part.state === "output-available" ? part.output : undefined
+  const screen =
+    name === "showScreen" &&
+    typeof output === "object" &&
+    output !== null &&
+    "base64" in output &&
+    typeof output.base64 === "string" &&
+    "mediaType" in output &&
+    output.mediaType === "image/jpeg"
+      ? { base64: output.base64, mediaType: output.mediaType }
+      : undefined
+
+  return (
+    <Tool defaultOpen={name === "showScreen"}>
+      <ToolHeader
+        {...(part.type === "dynamic-tool"
+          ? { type: part.type, toolName: part.toolName, state: part.state }
+          : { type: part.type, state: part.state })}
+        title={titles[name] ?? name}
+      />
+      <ToolContent>
+        {part.input !== undefined && <ToolInput input={part.input} />}
+        {screen ? (
+          <figure className="flex flex-col gap-2">
+            <Image
+              src={`data:${screen.mediaType};base64,${screen.base64}`}
+              alt="Screenshot of your AI teammate's sandbox desktop"
+              width={1280}
+              height={720}
+              unoptimized
+              className="h-auto w-full rounded-md"
+            />
+            <figcaption className="text-xs text-muted-foreground">
+              Sandbox screen at the time of capture
+            </figcaption>
+          </figure>
+        ) : (
+          <ToolOutput
+            output={name === "showScreen" ? undefined : output}
+            errorText={
+              part.state === "output-error" ? part.errorText : undefined
+            }
+          />
+        )}
+      </ToolContent>
+    </Tool>
   )
 }

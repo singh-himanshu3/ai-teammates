@@ -3,10 +3,12 @@
 import { auth } from "@clerk/nextjs/server"
 import { auth as triggerAuth } from "@trigger.dev/sdk"
 import { chat, defaultStorage } from "@trigger.dev/sdk/ai"
+import { validateUIMessages } from "ai"
 import { z } from "zod"
 
 import { getChat } from "@/queries/chat"
-import type { teammateChat } from "@/trigger/chat"
+import { createComputerTools } from "@/lib/agent/computer-tools"
+import type { teammateChat, TeammateMessage } from "@/trigger/chat"
 
 const chatIdSchema = z.string().min(1).max(100)
 const providerSchema = z.enum(["google", "groq"])
@@ -50,7 +52,15 @@ export async function loadChatTranscript({ chatId }: { chatId: string }) {
   await authorizeChat(chatId)
   const transcript = await loadTranscript({ chatId })
   return {
-    messages: transcript.messages,
+    // Empty history is valid for a chat, but validateUIMessages requires
+    // at least one message because it also validates model-generation input.
+    messages:
+      transcript.messages.length === 0
+        ? []
+        : await validateUIMessages<TeammateMessage>({
+            messages: transcript.messages,
+            tools: createComputerTools(async () => null),
+          }),
     cursors: transcript.cursors,
     publicAccessToken:
       transcript.messages.length > 0 || transcript.cursors?.lastOutEventId
