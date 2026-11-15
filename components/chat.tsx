@@ -20,6 +20,7 @@ import {
 import type { teammateChat } from "@/trigger/chat"
 import type { ChatBotProfile } from "@/lib/db/schema"
 import { ChatAvatar } from "@/components/chat-avatar"
+import { chatDataSchemas } from "@/lib/chat-client-data"
 
 import {
   Conversation,
@@ -54,6 +55,7 @@ import {
 } from "@/components/ai-elements/prompt-input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
 import { SelectGroup } from "@/components/ui/select"
 
@@ -88,6 +90,24 @@ export function Chat({
     chatId,
     async (params) => {
       const result = await loadChatTranscript(params)
+      if (kind === "group") {
+        for (const message of result.messages.toReversed()) {
+          const target = message.parts.findLast((part) =>
+            message.role === "assistant"
+              ? part.type === "data-speaker"
+              : message.role === "user" && part.type === "data-recipient"
+          )
+          if (
+            target &&
+            (target.type === "data-speaker" ||
+              target.type === "data-recipient") &&
+            members.some((member) => member.id === target.data.id)
+          ) {
+            setSelectedBotId(target.data.id)
+            break
+          }
+        }
+      }
       if (result.publicAccessToken) {
         transport.setSession(params.chatId, {
           publicAccessToken: result.publicAccessToken,
@@ -160,8 +180,23 @@ function ChatConversation({
     transport,
     messages: initialMessages,
     resume: initialMessages.length > 0,
+    dataPartSchemas: chatDataSchemas,
+    onData: (part) => {
+      if (
+        isGroup &&
+        part.type === "data-speaker" &&
+        members.some((member) => member.id === part.data.id)
+      ) {
+        setBotId(part.data.id)
+      }
+    },
   })
   const busy = status === "submitted" || status === "streaming"
+  const errorMessage = error?.message.includes(
+    "No data schema found for data part"
+  )
+    ? "The chat worker is running an older message schema. Restart the Trigger.dev development worker, then try again."
+    : error?.message
 
   async function stopAndEdit() {
     const lastPrompt = messages.findLast((message) => message.role === "user")
@@ -198,6 +233,11 @@ function ChatConversation({
             />
           )}
           {messages.map((message) => {
+            const recipient =
+              isGroup && message.role === "user"
+                ? message.parts.find((part) => part.type === "data-recipient")
+                    ?.data
+                : undefined
             const segments: {
               speaker?: { id: string; name: string; avatar: string }
               parts: ChatMessage["parts"]
@@ -228,6 +268,19 @@ function ChatConversation({
                   >
                     {speaker && <ChatAvatar seed={speaker.avatar} />}
                     <MessageContent>
+                      {recipient && (
+                        <Badge
+                          variant="outline"
+                          aria-label={`To ${recipient.name}`}
+                          className="max-w-full gap-1.5"
+                        >
+                          <ChatAvatar
+                            seed={recipient.avatar}
+                            className="size-3.5"
+                          />
+                          <span className="truncate">{recipient.name}</span>
+                        </Badge>
+                      )}
                       {speaker && (
                         <span className="text-xs font-medium text-muted-foreground">
                           {speaker.name}
@@ -271,7 +324,7 @@ function ChatConversation({
         {error && (
           <Alert variant="destructive">
             <AlertDescription>
-              {error.message}
+              {errorMessage}
               <Button
                 type="button"
                 variant="outline"
@@ -286,7 +339,30 @@ function ChatConversation({
         <PromptInput
           onSubmit={({ text }) => {
             if (busy || !text.trim() || (isGroup && !botId)) return
-            void sendMessage({ text: text.trim(), messageId: editingMessageId })
+            const recipient = isGroup
+              ? members.find((member) => member.id === botId)
+              : undefined
+            void sendMessage(
+              {
+                parts: [
+                  ...(recipient
+                    ? [
+                        {
+                          type: "data-recipient" as const,
+                          data: {
+                            id: recipient.id,
+                            name: recipient.name,
+                            avatar: recipient.avatar,
+                          },
+                        },
+                      ]
+                    : []),
+                  { type: "text", text: text.trim() },
+                ],
+                messageId: editingMessageId,
+              },
+              { metadata: { provider, botId: isGroup ? botId : undefined } }
+            )
             setEditingMessageId(undefined)
             setInput("")
           }}

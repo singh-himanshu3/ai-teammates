@@ -15,7 +15,11 @@ import { createComputerTools } from "@/lib/agent/computer-tools"
 import { claimBotSandbox, getAgentContext } from "@/lib/agent/context"
 import { ensureBotSandbox, getDaytonaClient } from "@/lib/agent/sandbox"
 import { SandboxSetupError } from "@/lib/agent/sandbox-errors"
-import { chatClientDataSchema, chatSpeakerSchema } from "@/lib/chat-client-data"
+import {
+  chatClientDataSchema,
+  chatSpeakerSchema,
+  chatDataSchemas,
+} from "@/lib/chat-client-data"
 import {
   completeHandoff,
   computerBotId,
@@ -33,7 +37,10 @@ type TeammateTools = ReturnType<typeof createComputerTools> & {
 
 export type TeammateMessage = UIMessage<
   unknown,
-  { speaker: z.infer<typeof chatSpeakerSchema> },
+  {
+    speaker: z.infer<typeof chatSpeakerSchema>
+    recipient: z.infer<typeof chatSpeakerSchema>
+  },
   InferUITools<TeammateTools>
 >
 
@@ -70,7 +77,7 @@ export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
   onValidateMessages: async ({ messages }) => {
     const validated = await validateUIMessages<TeammateMessage>({
       messages,
-      dataSchemas: { speaker: chatSpeakerSchema },
+      dataSchemas: chatDataSchemas,
     })
     if (validated.some((message) => message.role === "system")) {
       throw new Error("Invalid chat messages.")

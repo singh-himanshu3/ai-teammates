@@ -11,7 +11,7 @@ import { createComputerTools } from "@/lib/agent/computer-tools"
 import type { teammateChat, TeammateMessage } from "@/trigger/chat"
 import {
   chatClientDataSchema,
-  chatSpeakerSchema,
+  chatDataSchemas,
   type ChatClientData,
 } from "@/lib/chat-client-data"
 import { selectChatBot } from "@/lib/agent/select-bot"
@@ -76,7 +76,7 @@ export async function loadChatTranscript({ chatId }: { chatId: string }) {
                 () => ({ visited: [] })
               ),
             },
-            dataSchemas: { speaker: chatSpeakerSchema },
+            dataSchemas: chatDataSchemas,
           }),
     cursors: transcript.cursors,
     publicAccessToken:

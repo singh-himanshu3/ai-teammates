@@ -12,3 +12,8 @@ export const chatSpeakerSchema = z.object({
   name: z.string(),
   avatar: z.string(),
 })
+
+export const chatDataSchemas = {
+  speaker: chatSpeakerSchema,
+  recipient: chatSpeakerSchema,
+}

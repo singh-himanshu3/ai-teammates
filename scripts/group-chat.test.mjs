@@ -1,9 +1,54 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { validateUIMessages } from "ai"
 
 import { createGroupChatSchema } from "../lib/db/schema.ts"
-import { chatClientDataSchema } from "../lib/chat-client-data.ts"
+import {
+  chatClientDataSchema,
+  chatDataSchemas,
+} from "../lib/chat-client-data.ts"
 import { selectChatBot } from "../lib/agent/select-bot.ts"
+
+test("shared chat schemas validate recipient badges and handoff speakers together", async () => {
+  const original = { id: "one", name: "No", avatar: "no" }
+  const receiving = { id: "two", name: "Ada", avatar: "ada" }
+  const messages = [
+    {
+      id: "prompt",
+      role: "user",
+      parts: [
+        { type: "data-recipient", data: original },
+        { type: "text", text: "Can you review code?" },
+      ],
+    },
+    {
+      id: "reply",
+      role: "assistant",
+      parts: [
+        { type: "data-speaker", data: original },
+        { type: "text", text: "I'll pass this to Ada." },
+        { type: "data-speaker", data: receiving },
+        { type: "text", text: "Please share the code." },
+      ],
+    },
+  ]
+  await assert.rejects(
+    validateUIMessages({
+      messages,
+      dataSchemas: { speaker: chatDataSchemas.speaker },
+    }),
+    /No data schema found for data part recipient/
+  )
+  const loaded = await validateUIMessages({
+    messages: JSON.parse(JSON.stringify(messages)),
+    dataSchemas: chatDataSchemas,
+  })
+  assert.equal(loaded[0].parts[0].data.id, "one")
+  assert.equal(
+    loaded[1].parts.findLast((part) => part.type === "data-speaker").data.id,
+    "two"
+  )
+})
 
 test("group input trims editable fields and excludes server-managed values", () => {
   assert.deepEqual(
