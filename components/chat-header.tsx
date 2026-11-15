@@ -1,6 +1,5 @@
-import { MonitorIcon } from "lucide-react"
-
 import { ChatAvatar } from "@/components/chat-avatar"
+import { ChatDesktopToggle } from "@/components/chat-desktop"
 import { BotDialog, type EditableBot } from "@/components/bot-dialog"
 import { Button } from "@/components/ui/button"
 
@@ -37,9 +36,7 @@ export function ChatHeader({
           <span className="flex min-w-0 items-center gap-2">{identity}</span>
         )}
       </h1>
-      <Button type="button" variant="ghost" size="icon" aria-label="Desktop">
-        <MonitorIcon />
-      </Button>
+      <ChatDesktopToggle />
     </header>
   )
 }

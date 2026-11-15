@@ -79,11 +79,27 @@ worker environment as well.
 
 ## Computer tools
 
-Set `DAYTONA_API_KEY` in the Trigger.dev worker environment. Tools operate only
-on the existing sandbox referenced by the bot's `sandboxId` in `lib/db/schema.ts`.
-Automatic sandbox creation remains deferred; a bot without an assignment reports
-that setup is needed. Assigned sandboxes start on demand. Desktop actions require
-a sandbox image with Daytona computer-use support.
+Set `DAYTONA_API_KEY` in both the Next.js server and Trigger.dev worker environments.
+Tools and the desktop viewer operate on the sandbox referenced by the bot's
+`sandboxId` in `lib/db/schema.ts`. If a bot has no sandbox yet, its first
+computer-tool call or desktop-preview connection creates one and stores the ID
+on the bot. Each bot uses a stable sandbox name so retries recover an
+existing creation. Sandboxes start on demand and stop after five idle minutes.
+Select a default region for the organization in the Daytona Dashboard before
+creating sandboxes. Daytona requires this account setting even when a request
+specifies a region. Optionally set `DAYTONA_TARGET` to `us` or `eu` to override
+where new sandboxes run after the organization has been configured.
+Desktop actions require a snapshot with Daytona computer-use support; set
+`DAYTONA_SNAPSHOT` in the worker environment to select a custom snapshot, or omit
+it to use Daytona's default. `DAYTONA_API_URL`, if set, is explicitly passed to
+the SDK.
+
+The desktop panel lazily loads a read-only noVNC preview. Click it to open an
+interactive fullscreen dialog. One RFB client and canvas are reused between the
+two views, including when hiding and reopening the panel. Only the dialog's
+close button dismisses fullscreen; Escape and outside interactions do not.
+Access is authorized through Clerk and a one-hour, port-scoped signed Daytona
+preview URL. Use Reconnect if the connection closes or its credentials expire.
 
 The agent can run Bash commands, read and write UTF-8 files, list directories,
 and control the desktop mouse and keyboard. Actions run sequentially, with up to
@@ -101,6 +117,9 @@ Run the mocked tool checks with:
 
 ```bash
 node --experimental-strip-types --test scripts/computer-tools.test.mjs
+node --experimental-strip-types --test scripts/sandbox-provisioning.test.mjs
+node --experimental-strip-types --test scripts/vnc-preview.test.mjs
+node --experimental-strip-types --test scripts/sandbox-errors.test.mjs
 ```
 
 ## Adding components

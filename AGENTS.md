@@ -37,6 +37,13 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Never create branches, worktrees, or commits automatically. Only do so when the user explicitly asks for that specific action in the current request.
 - Leave changes uncommited in the working tree on the current branch and the let the user decide when and how to commit. 
 
+## Deployment environment variables
+
+- Use the Railway skill to add new application environment variables to the existing Railway production service when shipping changes that require them.
+- Railway production must use the Trigger.dev production environment's `TRIGGER_SECRET_KEY` (`tr_prod_...`). It is different from the local development key (`tr_dev_...`).
+- Never copy the local development `TRIGGER_SECRET_KEY` into the deployment. Preserve the existing production value; if it needs replacing, obtain the production key from Trigger.dev instead.
+- Keep secret values out of source control, logs, and user-facing output. Update only the required deployment variables and preserve unrelated values.
+
 
 ## DiceBear
 

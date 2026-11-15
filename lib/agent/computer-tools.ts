@@ -2,13 +2,13 @@ import type { Sandbox } from "@daytona/sdk"
 import { tool } from "ai"
 import { z } from "zod"
 
+import { SandboxSetupError, sandboxErrorMessage } from "./sandbox-errors.ts"
+
 const pathSchema = z.string().min(1).max(4096)
 const coordinate = z.number().int().min(0).max(32767)
 const position = { x: coordinate, y: coordinate }
 const modifiers = z.array(z.enum(["ctrl", "alt", "shift", "cmd"])).max(4)
 const maxOutputLength = 50000
-
-export class SandboxSetupError extends Error {}
 
 /** Sandbox IDs come from the authenticated chat's database relationship. */
 export function createComputerTools(
@@ -49,9 +49,7 @@ export function createComputerTools(
       if (signal?.aborted) signal.throwIfAborted()
       if (error instanceof SandboxSetupError) throw error
       console.error("Sandbox operation failed", error)
-      throw new Error(
-        "The sandbox operation failed. Check the sandbox's availability, desktop setup, and Daytona configuration before retrying."
-      )
+      throw new SandboxSetupError(sandboxErrorMessage(error))
     }
   }
 

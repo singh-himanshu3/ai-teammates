@@ -162,7 +162,10 @@ function ChatConversation({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Conversation className="min-h-0" aria-label="Chat messages">
-        <ConversationContent className="mx-auto w-full max-w-3xl">
+        <ConversationContent
+          className="mx-auto w-full max-w-3xl"
+          scrollClassName="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {messages.length === 0 && (
             <ConversationEmptyState
               title="Start a conversation"
