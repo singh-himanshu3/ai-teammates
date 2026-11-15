@@ -15,6 +15,7 @@ import {
   type ChatClientData,
 } from "@/lib/chat-client-data"
 import { selectChatBot } from "@/lib/agent/select-bot"
+import { createHandoffTool } from "@/lib/agent/handoff"
 
 const chatIdSchema = z.string().min(1).max(100)
 const startSession =
@@ -68,7 +69,13 @@ export async function loadChatTranscript({ chatId }: { chatId: string }) {
         ? []
         : await validateUIMessages<TeammateMessage>({
             messages: transcript.messages,
-            tools: createComputerTools(async () => null),
+            tools: {
+              ...createComputerTools(async () => null),
+              handoff: createHandoffTool(
+                async () => ({ kind: "direct", members: [] }),
+                () => ({ visited: [] })
+              ),
+            },
             dataSchemas: { speaker: chatSpeakerSchema },
           }),
     cursors: transcript.cursors,

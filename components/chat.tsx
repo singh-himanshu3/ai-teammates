@@ -10,7 +10,7 @@ import {
 import { getToolName, isToolUIPart } from "ai"
 import { SquareIcon } from "lucide-react"
 import Image from "next/image"
-import { useRef, useState } from "react"
+import { Fragment, useRef, useState } from "react"
 
 import {
   loadChatTranscript,
@@ -197,42 +197,64 @@ function ChatConversation({
               description="Send a message to your AI teammate."
             />
           )}
-          {messages.map((message) => (
-            <Message key={message.id} from={message.role}>
-              <MessageContent>
-                {message.parts.map((part, index) => {
-                  if (isToolUIPart(part)) {
-                    return <ChatTool key={part.toolCallId} part={part} />
-                  }
-                  if (part.type === "data-speaker") {
-                    return (
-                      <div
-                        key={index}
-                        className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground"
-                      >
-                        <ChatAvatar
-                          seed={part.data.avatar}
-                          className="size-5"
-                        />
-                        {part.data.name}
-                      </div>
-                    )
-                  }
-                  return part.type === "text" ? (
-                    <MessageResponse
-                      key={index}
-                      isAnimating={
-                        status === "streaming" &&
-                        message.id === messages.at(-1)?.id
-                      }
-                    >
-                      {part.text}
-                    </MessageResponse>
-                  ) : null
-                })}
-              </MessageContent>
-            </Message>
-          ))}
+          {messages.map((message) => {
+            const segments: {
+              speaker?: { id: string; name: string; avatar: string }
+              parts: ChatMessage["parts"]
+            }[] = [{ parts: [] }]
+            for (const part of message.parts) {
+              const segment = segments[segments.length - 1]
+              if (
+                isGroup &&
+                message.role === "assistant" &&
+                part.type === "data-speaker"
+              ) {
+                if (segment.parts.length === 0) segment.speaker = part.data
+                else segments.push({ speaker: part.data, parts: [] })
+              } else {
+                segment.parts.push(part)
+              }
+            }
+
+            return (
+              <Fragment key={message.id}>
+                {segments.map(({ speaker, parts }, segmentIndex) => (
+                  <Message
+                    key={segmentIndex}
+                    from={message.role}
+                    className={
+                      speaker ? "flex-row items-start gap-3" : undefined
+                    }
+                  >
+                    {speaker && <ChatAvatar seed={speaker.avatar} />}
+                    <MessageContent>
+                      {speaker && (
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {speaker.name}
+                        </span>
+                      )}
+                      {parts.map((part, index) => {
+                        if (isToolUIPart(part)) {
+                          return <ChatTool key={part.toolCallId} part={part} />
+                        }
+                        return part.type === "text" ? (
+                          <MessageResponse
+                            key={index}
+                            isAnimating={
+                              status === "streaming" &&
+                              message.id === messages.at(-1)?.id
+                            }
+                          >
+                            {part.text}
+                          </MessageResponse>
+                        ) : null
+                      })}
+                    </MessageContent>
+                  </Message>
+                ))}
+              </Fragment>
+            )
+          })}
           {status === "submitted" && (
             <div
               className="flex items-center gap-2 text-sm text-muted-foreground"
@@ -368,6 +390,7 @@ function ChatTool({ part }: { part: ToolPart }) {
   if (name === "viewScreen") return null
 
   const titles: Record<string, string> = {
+    handoff: "Hand off to teammate",
     bash: "Run command",
     readFile: "Read file",
     writeFiles: "Write files",

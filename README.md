@@ -126,14 +126,18 @@ node --experimental-strip-types --test scripts/sandbox-errors.test.mjs
 
 Choose **Create a groupchat** from the sidebar's + menu, name the group, and
 select at least two bots. Pick a bot in the message composer's dropdown before
-sending a message; only that bot replies to the turn, using the group's shared
-history. Replies show the responding bot's name and avatar. Group chats do not
-have a desktop panel.
+sending a message; that bot starts the turn using the group's shared history.
+It can use `handoff` when another group member's job is a better fit. The
+receiving bot continues automatically with its own instructions and sandbox.
+Each contribution shows its bot's name and avatar. Handoffs cannot revisit a
+bot, and a turn allows at most three handoffs. Group chats do not have a
+desktop panel.
 
 Run the group validation and recipient-selection checks with:
 
 ```bash
 node --experimental-strip-types --test scripts/group-chat.test.mjs
+node --experimental-strip-types --test scripts/handoff.test.mjs
 ```
 
 ## Adding components

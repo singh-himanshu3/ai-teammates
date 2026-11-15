@@ -31,7 +31,7 @@ export async function getAgentContext(chatId: string, botId?: string) {
   if (!rows.length) throw new Error("Chat not found.")
   const kind = rows[0].kind
   const members = rows.flatMap((row) => (row.bot ? [row.bot] : []))
-  return { kind, bot: selectChatBot(kind, members, botId) }
+  return { kind, members, bot: selectChatBot(kind, members, botId) }
 }
 
 export async function claimBotSandbox(
