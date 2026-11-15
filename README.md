@@ -122,6 +122,20 @@ node --experimental-strip-types --test scripts/vnc-preview.test.mjs
 node --experimental-strip-types --test scripts/sandbox-errors.test.mjs
 ```
 
+## Group chats
+
+Choose **Create a groupchat** from the sidebar's + menu, name the group, and
+select at least two bots. Pick a bot in the message composer's dropdown before
+sending a message; only that bot replies to the turn, using the group's shared
+history. Replies show the responding bot's name and avatar. Group chats do not
+have a desktop panel.
+
+Run the group validation and recipient-selection checks with:
+
+```bash
+node --experimental-strip-types --test scripts/group-chat.test.mjs
+```
+
 ## Adding components
 
 To add components to your app, run the following command:

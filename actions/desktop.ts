@@ -14,8 +14,15 @@ const chatIdSchema = z.string().trim().min(1).max(100)
 export async function connectChatDesktop(input: unknown) {
   const { userId } = await auth.protect()
   const parsed = chatIdSchema.safeParse(input)
-  if (!parsed.success || !(await getChat(parsed.data))) {
+  const chat = parsed.success ? await getChat(parsed.data) : undefined
+  if (!chat || !parsed.success) {
     return { success: false as const, error: "This chat could not be found." }
+  }
+  if (chat.kind === "group") {
+    return {
+      success: false as const,
+      error: "Desktop previews are only available in direct chats.",
+    }
   }
 
   try {

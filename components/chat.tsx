@@ -18,6 +18,8 @@ import {
   startChatSession,
 } from "@/actions/chat"
 import type { teammateChat } from "@/trigger/chat"
+import type { ChatBotProfile } from "@/lib/db/schema"
+import { ChatAvatar } from "@/components/chat-avatar"
 
 import {
   Conversation,
@@ -62,14 +64,25 @@ const providers = [
 
 type ChatMessage = InferChatUIMessage<typeof teammateChat>
 
-export function Chat({ chatId }: { chatId: string }) {
+export function Chat({
+  chatId,
+  kind,
+  members,
+}: {
+  chatId: string
+  kind: "direct" | "group"
+  members: ChatBotProfile[]
+}) {
   const [provider, setProvider] = useState<"google" | "groq">("google")
+  const [selectedBotId, setSelectedBotId] = useState(members[0]?.id)
+  const botId =
+    members.find((bot) => bot.id === selectedBotId)?.id ?? members[0]?.id
   const transport = useTriggerChatTransport<typeof teammateChat>({
     task: "teammate-chat",
     accessToken: ({ chatId }) => mintChatAccessToken(chatId),
     startSession: ({ chatId, clientData }) =>
       startChatSession({ chatId, clientData }),
-    clientData: { provider },
+    clientData: { provider, botId: kind === "group" ? botId : undefined },
   })
   const transcript = useLoadTranscript<ChatMessage>(
     chatId,
@@ -103,6 +116,10 @@ export function Chat({ chatId }: { chatId: string }) {
       initialMessages={transcript.messages}
       provider={provider}
       setProvider={setProvider}
+      members={members}
+      isGroup={kind === "group"}
+      botId={botId}
+      setBotId={setSelectedBotId}
     />
   )
 }
@@ -113,12 +130,20 @@ function ChatConversation({
   initialMessages,
   provider,
   setProvider,
+  members,
+  isGroup,
+  botId,
+  setBotId,
 }: {
   chatId: string
   transport: TriggerChatTransport
   initialMessages: ChatMessage[]
   provider: "google" | "groq"
   setProvider: (provider: "google" | "groq") => void
+  members: ChatBotProfile[]
+  isGroup: boolean
+  botId: string | undefined
+  setBotId: (id: string) => void
 }) {
   const [input, setInput] = useState("")
   const [editingMessageId, setEditingMessageId] = useState<string>()
@@ -179,6 +204,20 @@ function ChatConversation({
                   if (isToolUIPart(part)) {
                     return <ChatTool key={part.toolCallId} part={part} />
                   }
+                  if (part.type === "data-speaker") {
+                    return (
+                      <div
+                        key={index}
+                        className="mb-1 flex items-center gap-2 text-xs font-medium text-muted-foreground"
+                      >
+                        <ChatAvatar
+                          seed={part.data.avatar}
+                          className="size-5"
+                        />
+                        {part.data.name}
+                      </div>
+                    )
+                  }
                   return part.type === "text" ? (
                     <MessageResponse
                       key={index}
@@ -224,7 +263,7 @@ function ChatConversation({
         )}
         <PromptInput
           onSubmit={({ text }) => {
-            if (busy || !text.trim()) return
+            if (busy || !text.trim() || (isGroup && !botId)) return
             void sendMessage({ text: text.trim(), messageId: editingMessageId })
             setEditingMessageId(undefined)
             setInput("")
@@ -241,42 +280,78 @@ function ChatConversation({
             />
           </PromptInputBody>
           <PromptInputFooter>
-            <PromptInputSelect
-              items={providers}
-              value={provider}
-              disabled={busy}
-              onValueChange={(value) => {
-                if (value === "google" || value === "groq") setProvider(value)
-              }}
-            >
-              <PromptInputSelectTrigger aria-label="AI model" size="sm">
-                <PromptInputSelectValue />
-              </PromptInputSelectTrigger>
-              <PromptInputSelectContent
-                side="top"
-                align="start"
-                alignItemWithTrigger={false}
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {isGroup && (
+                <PromptInputSelect
+                  items={members.map((bot) => ({
+                    value: bot.id,
+                    label: bot.name,
+                  }))}
+                  value={botId ?? null}
+                  disabled={busy}
+                  onValueChange={(value) => {
+                    if (typeof value === "string") setBotId(value)
+                  }}
+                >
+                  <PromptInputSelectTrigger
+                    aria-label="Bot to talk to"
+                    size="sm"
+                  >
+                    <PromptInputSelectValue placeholder="Choose a bot" />
+                  </PromptInputSelectTrigger>
+                  <PromptInputSelectContent
+                    side="top"
+                    align="start"
+                    alignItemWithTrigger={false}
+                  >
+                    <SelectGroup>
+                      {members.map((bot) => (
+                        <PromptInputSelectItem key={bot.id} value={bot.id}>
+                          <ChatAvatar seed={bot.avatar} className="size-5" />
+                          {bot.name}
+                        </PromptInputSelectItem>
+                      ))}
+                    </SelectGroup>
+                  </PromptInputSelectContent>
+                </PromptInputSelect>
+              )}
+              <PromptInputSelect
+                items={providers}
+                value={provider}
+                disabled={busy}
+                onValueChange={(value) => {
+                  if (value === "google" || value === "groq") setProvider(value)
+                }}
               >
-                <SelectGroup>
-                  {providers.map((item) => (
-                    <PromptInputSelectItem
-                      key={item.value}
-                      value={item.value}
-                      className="data-selected:bg-accent data-selected:text-accent-foreground"
-                    >
-                      {item.label}
-                    </PromptInputSelectItem>
-                  ))}
-                </SelectGroup>
-              </PromptInputSelectContent>
-            </PromptInputSelect>
+                <PromptInputSelectTrigger aria-label="AI model" size="sm">
+                  <PromptInputSelectValue />
+                </PromptInputSelectTrigger>
+                <PromptInputSelectContent
+                  side="top"
+                  align="start"
+                  alignItemWithTrigger={false}
+                >
+                  <SelectGroup>
+                    {providers.map((item) => (
+                      <PromptInputSelectItem
+                        key={item.value}
+                        value={item.value}
+                        className="data-selected:bg-accent data-selected:text-accent-foreground"
+                      >
+                        {item.label}
+                      </PromptInputSelectItem>
+                    ))}
+                  </SelectGroup>
+                </PromptInputSelectContent>
+              </PromptInputSelect>
+            </div>
             <PromptInputSubmit
               status={status}
               onStop={() => void stopAndEdit()}
               aria-label={
                 busy ? "Stop generation and edit message" : "Send message"
               }
-              disabled={!busy && !input.trim()}
+              disabled={!busy && (!input.trim() || (isGroup && !botId))}
             >
               {busy ? <SquareIcon className="fill-current" /> : undefined}
             </PromptInputSubmit>

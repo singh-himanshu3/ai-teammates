@@ -112,3 +112,21 @@ export const createBotSchema = insertBotSchema.pick({
 })
 
 export type CreateBotInput = z.infer<typeof createBotSchema>
+
+export const createGroupChatSchema = createInsertSchema(chats, {
+  name: z.string().trim().min(1, "Give the group a name.").max(100),
+})
+  .pick({ name: true })
+  .extend({
+    botIds: z
+      .array(z.string().trim().min(1).max(100))
+      .min(2, "Choose at least two bots.")
+      .max(50, "Choose up to 50 bots.")
+      .refine(
+        (ids) => new Set(ids).size === ids.length,
+        "Choose each bot only once."
+      ),
+  })
+
+export type CreateGroupChatInput = z.infer<typeof createGroupChatSchema>
+export type ChatBotProfile = Pick<Bot, "id" | "name" | "avatar">

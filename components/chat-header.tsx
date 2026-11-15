@@ -1,4 +1,6 @@
 import { ChatAvatar } from "@/components/chat-avatar"
+import { GroupChatAvatar } from "@/components/group-chat-avatar"
+import type { ChatBotProfile } from "@/lib/db/schema"
 import { ChatDesktopToggle } from "@/components/chat-desktop"
 import { BotDialog, type EditableBot } from "@/components/bot-dialog"
 import { Button } from "@/components/ui/button"
@@ -7,21 +9,29 @@ export function ChatHeader({
   name,
   avatar,
   bot,
+  members = [],
+  isGroup = false,
 }: {
   name: string
   avatar: string
   bot?: EditableBot | null
+  members?: ChatBotProfile[]
+  isGroup?: boolean
 }) {
   const identity = (
     <>
-      <ChatAvatar seed={avatar} className="size-6" />
+      {isGroup ? (
+        <GroupChatAvatar members={members} className="size-6" />
+      ) : (
+        <ChatAvatar seed={avatar} className="size-6" />
+      )}
       <span className="truncate">{name}</span>
     </>
   )
   return (
     <header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b bg-background px-4 text-foreground">
       <h1 className="min-w-0 text-sm font-medium">
-        {bot ? (
+        {!isGroup && bot ? (
           <BotDialog seed={avatar} bot={bot}>
             <Button
               type="button"
@@ -36,7 +46,7 @@ export function ChatHeader({
           <span className="flex min-w-0 items-center gap-2">{identity}</span>
         )}
       </h1>
-      <ChatDesktopToggle />
+      {!isGroup && <ChatDesktopToggle />}
     </header>
   )
 }

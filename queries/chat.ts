@@ -1,7 +1,7 @@
 import "server-only"
 
 import { auth } from "@clerk/nextjs/server"
-import { and, asc, eq, sql } from "drizzle-orm"
+import { and, asc, eq } from "drizzle-orm"
 
 import { db } from "@/lib/db"
 import { bots, chatMembers, chats } from "@/lib/db/schema"
@@ -9,41 +9,36 @@ import { bots, chatMembers, chats } from "@/lib/db/schema"
 export async function getChat(chatId: string) {
   const { userId } = await auth.protect()
 
-  const firstBot = db
-    .select({
-      id: bots.id,
-      name: bots.name,
-      avatar: bots.avatar,
-      job: bots.job,
-      instructions: bots.instructions,
-    })
-    .from(chatMembers)
-    .innerJoin(
-      bots,
-      and(eq(bots.id, chatMembers.botId), eq(bots.userId, userId))
-    )
-    .where(eq(chatMembers.chatId, chats.id))
-    .orderBy(asc(chatMembers.joinedAt), asc(bots.id))
-    .limit(1)
-    .as("first_bot")
-
-  const [chat] = await db
+  const rows = await db
     .select({
       id: chats.id,
       name: chats.name,
       kind: chats.kind,
-      bot: {
-        id: firstBot.id,
-        name: firstBot.name,
-        avatar: firstBot.avatar,
-        job: firstBot.job,
-        instructions: firstBot.instructions,
+      member: {
+        id: bots.id,
+        name: bots.name,
+        avatar: bots.avatar,
+        job: bots.job,
+        instructions: bots.instructions,
       },
     })
     .from(chats)
-    .leftJoinLateral(firstBot, sql`true`)
+    .leftJoin(chatMembers, eq(chatMembers.chatId, chats.id))
+    .leftJoin(
+      bots,
+      and(eq(bots.id, chatMembers.botId), eq(bots.userId, userId))
+    )
     .where(and(eq(chats.id, chatId), eq(chats.userId, userId)))
-    .limit(1)
+    .orderBy(asc(chatMembers.joinedAt), asc(bots.id))
 
-  return chat
+  if (!rows.length) return undefined
+  const { id, name, kind } = rows[0]
+  const members = rows.flatMap((row) => (row.member ? [row.member] : []))
+  return {
+    id,
+    name,
+    kind,
+    members,
+    bot: kind === "direct" ? (members[0] ?? null) : null,
+  }
 }

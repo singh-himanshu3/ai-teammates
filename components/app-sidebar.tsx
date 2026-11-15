@@ -4,8 +4,9 @@ import { Suspense } from "react"
 
 import { AppSidebarHeader } from "@/components/app-sidebar-header"
 import { ChatAvatar } from "@/components/chat-avatar"
+import { GroupChatAvatar } from "@/components/group-chat-avatar"
 import { SidebarChatLink } from "@/components/sidebar-chat-link"
-import { getUserChats } from "@/queries/bot"
+import { getUserChats, getUserBots } from "@/queries/bot"
 
 import {
   Sidebar,
@@ -20,14 +21,16 @@ import {
 } from "@/components/ui/sidebar"
 
 export async function AppSidebar() {
-  const chats = await getUserChats()
+  const [chats, bots] = await Promise.all([getUserChats(), getUserBots()])
   return (
     <Sidebar collapsible="icon">
       <AppSidebarHeader
+        bots={bots}
         chats={chats.map((chat) => ({
           id: chat.id,
-          name: chat.name ?? chat.botName ?? "Untitled chat",
-          avatar: chat.botAvatar ?? chat.id,
+          name: chat.name ?? chat.members[0]?.name ?? "Untitled chat",
+          kind: chat.kind,
+          members: chat.members,
           lastMessagePreview: chat.lastMessagePreview,
         }))}
       />
@@ -39,19 +42,32 @@ export async function AppSidebar() {
                 <SidebarMenuItem key={chat.id}>
                   <SidebarChatLink
                     size="lg"
-                    tooltip={chat.name ?? chat.botName ?? "Untitled chat"}
-                    aria-label={chat.name ?? chat.botName ?? "Untitled chat"}
+                    tooltip={
+                      chat.name ?? chat.members[0]?.name ?? "Untitled chat"
+                    }
+                    aria-label={
+                      chat.name ?? chat.members[0]?.name ?? "Untitled chat"
+                    }
                     className="group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0"
                     href={`/chats/${encodeURIComponent(chat.id)}`}
                   >
-                    <ChatAvatar
-                      seed={chat.botAvatar ?? chat.id}
-                      className="group-data-[collapsible=icon]:size-6"
-                    />
+                    {chat.kind === "group" ? (
+                      <GroupChatAvatar
+                        members={chat.members}
+                        className="group-data-[collapsible=icon]:size-6"
+                      />
+                    ) : (
+                      <ChatAvatar
+                        seed={chat.members[0]?.avatar ?? chat.id}
+                        className="group-data-[collapsible=icon]:size-6"
+                      />
+                    )}
                     <span className="flex min-w-0 flex-1 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
                       <span className="flex min-w-0 items-baseline gap-2">
                         <span className="truncate font-medium">
-                          {chat.name ?? chat.botName ?? "Untitled chat"}
+                          {chat.name ??
+                            chat.members[0]?.name ??
+                            "Untitled chat"}
                         </span>
                         <time
                           dateTime={chat.createdAt.toISOString()}

@@ -6,6 +6,9 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react"
 
 import { BotDialog } from "@/components/bot-dialog"
 import { ChatAvatar } from "@/components/chat-avatar"
+import { GroupChatAvatar } from "@/components/group-chat-avatar"
+import { GroupChatDialog } from "@/components/group-chat-dialog"
+import type { ChatBotProfile } from "@/lib/db/schema"
 import { Button } from "@/components/ui/button"
 import {
   Command,
@@ -29,7 +32,8 @@ import { Kbd, KbdGroup } from "@/components/ui/kbd"
 type SearchChat = {
   id: string
   name: string
-  avatar: string
+  kind: "direct" | "group"
+  members: ChatBotProfile[]
   lastMessagePreview: string | null
 }
 
@@ -38,7 +42,13 @@ const getIsMac = () =>
   /Macintosh|Mac OS X|iPhone|iPad|iPod/i.test(navigator.userAgent)
 const getServerIsMac = () => false
 
-export function AppSidebarHeader({ chats }: { chats: SearchChat[] }) {
+export function AppSidebarHeader({
+  chats,
+  bots,
+}: {
+  chats: SearchChat[]
+  bots: ChatBotProfile[]
+}) {
   const router = useRouter()
   const isMac = useSyncExternalStore(
     subscribeToPlatform,
@@ -46,6 +56,7 @@ export function AppSidebarHeader({ chats }: { chats: SearchChat[] }) {
     getServerIsMac
   )
   const [botDialogOpen, setBotDialogOpen] = useState(false)
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const createButtonRef = useRef<HTMLButtonElement>(null)
   const seed = useId()
@@ -57,7 +68,8 @@ export function AppSidebarHeader({ chats }: { chats: SearchChat[] }) {
         (event.metaKey || event.ctrlKey) &&
         !event.altKey &&
         !event.repeat &&
-        !botDialogOpen
+        !botDialogOpen &&
+        !groupDialogOpen
       ) {
         event.preventDefault()
         setSearchOpen((open) => !open)
@@ -66,7 +78,7 @@ export function AppSidebarHeader({ chats }: { chats: SearchChat[] }) {
 
     document.addEventListener("keydown", handleKeyDown)
     return () => document.removeEventListener("keydown", handleKeyDown)
-  }, [botDialogOpen])
+  }, [botDialogOpen, groupDialogOpen])
 
   return (
     <>
@@ -87,9 +99,9 @@ export function AppSidebarHeader({ chats }: { chats: SearchChat[] }) {
                   <PlusIcon />
                   Create new bot
                 </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setGroupDialogOpen(true)}>
                   <UsersIcon />
-                  Create group chat
+                  Create a groupchat
                 </DropdownMenuItem>
               </DropdownMenuGroup>
             </DropdownMenuContent>
@@ -137,7 +149,11 @@ export function AppSidebarHeader({ chats }: { chats: SearchChat[] }) {
                     router.push(`/chats/${encodeURIComponent(chat.id)}`)
                   }}
                 >
-                  <ChatAvatar seed={chat.avatar} />
+                  {chat.kind === "group" ? (
+                    <GroupChatAvatar members={chat.members} />
+                  ) : (
+                    <ChatAvatar seed={chat.members[0]?.avatar ?? chat.id} />
+                  )}
                   <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <span className="truncate">{chat.name}</span>
                     {chat.lastMessagePreview && (
@@ -156,6 +172,12 @@ export function AppSidebarHeader({ chats }: { chats: SearchChat[] }) {
         seed={seed}
         open={botDialogOpen}
         onOpenChange={setBotDialogOpen}
+        finalFocus={createButtonRef}
+      />
+      <GroupChatDialog
+        bots={bots}
+        open={groupDialogOpen}
+        onOpenChange={setGroupDialogOpen}
         finalFocus={createButtonRef}
       />
     </>

@@ -1,26 +1,36 @@
 import { google } from "@ai-sdk/google"
 import { groq } from "@ai-sdk/groq"
-import { chat, type InferChatUIMessageFromTools } from "@trigger.dev/sdk/ai"
-import { APICallError, RetryError, stepCountIs, validateUIMessages } from "ai"
+import { chat } from "@trigger.dev/sdk/ai"
+import {
+  APICallError,
+  RetryError,
+  stepCountIs,
+  validateUIMessages,
+  type UIMessage,
+  type InferUITools,
+} from "ai"
 import { z } from "zod"
 
 import { createComputerTools } from "@/lib/agent/computer-tools"
 import { claimBotSandbox, getAgentContext } from "@/lib/agent/context"
 import { ensureBotSandbox, getDaytonaClient } from "@/lib/agent/sandbox"
 import { SandboxSetupError } from "@/lib/agent/sandbox-errors"
+import { chatClientDataSchema, chatSpeakerSchema } from "@/lib/chat-client-data"
 
-export type TeammateMessage = InferChatUIMessageFromTools<
-  ReturnType<typeof createComputerTools>
+export type TeammateMessage = UIMessage<
+  unknown,
+  { speaker: z.infer<typeof chatSpeakerSchema> },
+  InferUITools<ReturnType<typeof createComputerTools>>
 >
 
 export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
   id: "teammate-chat",
-  clientDataSchema: z.object({ provider: z.enum(["google", "groq"]) }),
+  clientDataSchema: chatClientDataSchema,
   tools: ({ chatId, clientData }) =>
     createComputerTools(
       async () => {
         // Re-read the association for each action; sandbox IDs never come from the model.
-        const { bot } = await getAgentContext(chatId)
+        const { bot } = await getAgentContext(chatId, clientData?.botId)
         if (!bot) return null
         return ensureBotSandbox(bot, getDaytonaClient(), (sandboxId) =>
           claimBotSandbox(bot, sandboxId)
@@ -29,7 +39,10 @@ export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
       { supportsImages: clientData?.provider !== "groq" }
     ),
   onValidateMessages: async ({ messages }) => {
-    const validated = await validateUIMessages<TeammateMessage>({ messages })
+    const validated = await validateUIMessages<TeammateMessage>({
+      messages,
+      dataSchemas: { speaker: chatSpeakerSchema },
+    })
     if (validated.some((message) => message.role === "system")) {
       throw new Error("Invalid chat messages.")
     }
@@ -42,7 +55,7 @@ export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
     return validated
   },
   run: async ({ chatId, messages, tools, clientData, signal, streamText }) => {
-    const { bot } = await getAgentContext(chatId)
+    const { bot, kind } = await getAgentContext(chatId, clientData?.botId)
     const provider = clientData?.provider ?? "google"
     const apiKeys = {
       google: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
@@ -50,6 +63,13 @@ export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
     }
     if (!apiKeys[provider])
       throw new Error("This AI provider is not configured yet.")
+
+    if (kind === "group" && bot) {
+      chat.response.write({
+        type: "data-speaker",
+        data: { id: bot.id, name: bot.name, avatar: bot.avatar },
+      })
+    }
 
     return streamText({
       model:
@@ -61,6 +81,9 @@ export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
           ? `You are ${bot.name}, an AI teammate. Your job is: ${bot.job}.`
           : "You are an AI teammate. Your job is to provide general assistance.",
         "Your purpose is to help the user make progress on work related to your job. Give clear, useful answers, follow the user's requirements, and ask focused questions when essential information is missing.",
+        kind === "group"
+          ? "This is a group conversation. You are the bot selected for this turn. Reply only as yourself, using the shared history as context; do not speak for the other bots."
+          : "",
         bot?.sandboxId
           ? `Environment: A Daytona sandbox is assigned to you with ID ${bot.sandboxId}. Its runtime state, operating system, installed software, and filesystem contents are unspecified.`
           : "Environment: Your Daytona sandbox will be created and assigned automatically on your first computer-tool call. You do not need to ask the user to activate or assign one.",

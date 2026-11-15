@@ -22,6 +22,26 @@ export default async function ChatPage({
 
   if (!chat) notFound()
 
+  const conversation = (
+    <main className="flex h-full min-w-0 flex-col overflow-hidden bg-background text-foreground">
+      <ChatHeader
+        name={chat.name ?? chat.bot?.name ?? "Untitled chat"}
+        avatar={chat.bot?.avatar ?? chat.id}
+        bot={chat.bot}
+        members={chat.members}
+        isGroup={chat.kind === "group"}
+      />
+      <Chat
+        key={chat.id}
+        chatId={chat.id}
+        kind={chat.kind}
+        members={chat.members}
+      />
+    </main>
+  )
+
+  if (chat.kind === "group") return <div className="h-svh">{conversation}</div>
+
   return (
     <ChatDesktopProvider key={chat.id}>
       <ResizablePanelGroup
@@ -29,14 +49,7 @@ export default async function ChatPage({
         style={{ height: "100svh" }}
       >
         <ResizablePanel id="conversation" defaultSize="100%" minSize="30%">
-          <main className="flex h-full min-w-0 flex-col overflow-hidden bg-background text-foreground">
-            <ChatHeader
-              name={chat.bot?.name ?? chat.name ?? "Untitled chat"}
-              avatar={chat.bot?.avatar ?? chat.id}
-              bot={chat.bot}
-            />
-            <Chat key={chat.id} chatId={chat.id} />
-          </main>
+          {conversation}
         </ResizablePanel>
         <ChatDesktopHandle />
         <ChatDesktopPanel

@@ -9,9 +9,14 @@ import { z } from "zod"
 import { getChat } from "@/queries/chat"
 import { createComputerTools } from "@/lib/agent/computer-tools"
 import type { teammateChat, TeammateMessage } from "@/trigger/chat"
+import {
+  chatClientDataSchema,
+  chatSpeakerSchema,
+  type ChatClientData,
+} from "@/lib/chat-client-data"
+import { selectChatBot } from "@/lib/agent/select-bot"
 
 const chatIdSchema = z.string().min(1).max(100)
-const providerSchema = z.enum(["google", "groq"])
 const startSession =
   chat.createStartSessionAction<typeof teammateChat>("teammate-chat")
 const loadTranscript = chat.createLoadTranscriptAction(defaultStorage)
@@ -19,7 +24,9 @@ const loadTranscript = chat.createLoadTranscriptAction(defaultStorage)
 async function authorizeChat(chatId: string) {
   await auth.protect()
   chatIdSchema.parse(chatId)
-  if (!(await getChat(chatId))) throw new Error("Chat not found.")
+  const conversation = await getChat(chatId)
+  if (!conversation) throw new Error("Chat not found.")
+  return conversation
 }
 
 function createAccessToken(chatId: string) {
@@ -34,12 +41,14 @@ export async function startChatSession({
   clientData,
 }: {
   chatId: string
-  clientData: { provider: "google" | "groq" }
+  clientData: ChatClientData
 }) {
-  await authorizeChat(chatId)
+  const conversation = await authorizeChat(chatId)
+  const parsed = chatClientDataSchema.parse(clientData)
+  selectChatBot(conversation.kind, conversation.members, parsed.botId)
   return startSession({
     chatId,
-    clientData: { provider: providerSchema.parse(clientData.provider) },
+    clientData: parsed,
   })
 }
 
@@ -60,6 +69,7 @@ export async function loadChatTranscript({ chatId }: { chatId: string }) {
         : await validateUIMessages<TeammateMessage>({
             messages: transcript.messages,
             tools: createComputerTools(async () => null),
+            dataSchemas: { speaker: chatSpeakerSchema },
           }),
     cursors: transcript.cursors,
     publicAccessToken:
