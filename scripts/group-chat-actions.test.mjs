@@ -1,0 +1,136 @@
+import assert from "node:assert/strict"
+import { registerHooks } from "node:module"
+import { after, test } from "node:test"
+import { drizzle } from "drizzle-orm/neon-http"
+
+// Exercise the real actions and SQL builders with mocked request auth and DB IO.
+const state = {
+  rows: [],
+  queries: [],
+  batches: 0,
+  revalidated: [],
+  authenticated: true,
+}
+const client = {
+  query(sql, params) {
+    state.queries.push({ sql, params })
+    return Promise.resolve({ rows: state.rows.shift() ?? [] })
+  },
+  transaction(queries) {
+    state.batches++
+    return Promise.all(queries)
+  },
+}
+globalThis.__groupActionTest = { state, db: drizzle({ client }) }
+const source = (text) => `data:text/javascript,${encodeURIComponent(text)}`
+const mocks = {
+  "@clerk/nextjs/server": source(
+    'export const auth = { protect: async () => { if (!globalThis.__groupActionTest.state.authenticated) throw new Error("Unauthorized"); return { userId: "owner-one" }; } };'
+  ),
+  "next/cache": source(
+    "export const revalidatePath = (...args) => globalThis.__groupActionTest.state.revalidated.push(args);"
+  ),
+  "@/lib/db": source("export const db = globalThis.__groupActionTest.db;"),
+  "@/lib/db/schema": new URL("../lib/db/schema.ts", import.meta.url).href,
+}
+const hooks = registerHooks({
+  resolve(specifier, context, nextResolve) {
+    return mocks[specifier]
+      ? { url: mocks[specifier], shortCircuit: true }
+      : nextResolve(specifier, context)
+  },
+})
+const { updateGroupChat, deleteGroupChat } =
+  await import("../actions/group-chat.ts")
+after(() => {
+  hooks.deregister()
+  delete globalThis.__groupActionTest
+})
+function reset(rows = []) {
+  Object.assign(state, {
+    rows,
+    queries: [],
+    batches: 0,
+    revalidated: [],
+    authenticated: true,
+  })
+}
+const input = { name: "  Weekend plans  ", botIds: ["bot-one", "bot-two"] }
+
+test("group mutations require authentication before database access", async () => {
+  reset()
+  state.authenticated = false
+  await assert.rejects(updateGroupChat("group-one", input), /Unauthorized/)
+  await assert.rejects(deleteGroupChat("group-one"), /Unauthorized/)
+  assert.equal(state.queries.length, 0)
+})
+
+test("invalid editable fields and group IDs cannot mutate groups", async () => {
+  reset()
+  const invalid = await updateGroupChat("group-one", { ...input, name: " " })
+  assert.equal(invalid.success, false)
+  assert.ok(invalid.fieldErrors.name.length)
+  assert.equal((await updateGroupChat("", input)).success, false)
+  assert.equal((await deleteGroupChat(" ")).success, false)
+  assert.equal(state.queries.length, 0)
+})
+
+test("foreign or direct chats cannot be edited and foreign bots cannot be added", async () => {
+  reset([[]])
+  assert.equal((await updateGroupChat("foreign-chat", input)).success, false)
+  assert.deepEqual(state.queries[0].params, [
+    "foreign-chat",
+    "owner-one",
+    "group",
+    1,
+  ])
+  assert.equal(state.batches, 0)
+  reset([[["group-one"]], [["bot-one"]]])
+  const unavailable = await updateGroupChat("group-one", input)
+  assert.equal(unavailable.success, false)
+  assert.ok(unavailable.fieldErrors.botIds.length)
+  assert.equal(state.batches, 0)
+})
+
+test("editing atomically renames the owned group and replaces its membership", async () => {
+  reset([[["group-one"]], [["bot-one"], ["bot-two"]], [], [], []])
+  const result = await updateGroupChat("group-one", {
+    ...input,
+    id: "foreign",
+    userId: "other",
+    kind: "direct",
+  })
+  assert.equal(result.success, true)
+  assert.equal(result.chatId, "group-one")
+  assert.equal(state.batches, 1)
+  const writes = state.queries.slice(2)
+  assert.equal(writes.length, 3)
+  assert.match(writes[0].sql, /^update "chats"/)
+  assert.deepEqual(writes[0].params, [
+    "Weekend plans",
+    "group-one",
+    "owner-one",
+    "group",
+  ])
+  assert.match(writes[1].sql, /^delete from "chat_members"/)
+  assert.deepEqual(writes[1].params, ["group-one", "owner-one", "group"])
+  assert.match(writes[2].sql, /^insert into "chat_members"/)
+  assert.deepEqual(writes[2].params, [
+    "group-one",
+    "bot-one",
+    "group-one",
+    "bot-two",
+  ])
+  assert.deepEqual(state.revalidated, [["/", "layout"]])
+})
+
+test("deletion is scoped to the owner's group and does not delete bots or direct chats", async () => {
+  reset([[["group-one"]]])
+  assert.equal((await deleteGroupChat("group-one")).success, true)
+  assert.equal(state.queries.length, 1)
+  assert.match(state.queries[0].sql, /^delete from "chats"/)
+  assert.deepEqual(state.queries[0].params, ["group-one", "owner-one", "group"])
+  reset([[]])
+  assert.equal((await deleteGroupChat("foreign-chat")).success, false)
+  assert.deepEqual(state.revalidated, [])
+})

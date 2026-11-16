@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { notFound } from "next/navigation"
 
 import { getChat } from "@/queries/chat"
+import { getUserBots } from "@/queries/bot"
 import { ChatHeader } from "@/components/chat-header"
 import { Chat } from "@/components/chat"
 import {
@@ -21,6 +22,7 @@ export default async function ChatPage({
   const chat = await getChat(chatId)
 
   if (!chat) notFound()
+  const availableBots = chat.kind === "group" ? await getUserBots() : []
 
   const conversation = (
     <main className="flex h-full min-w-0 flex-col overflow-hidden bg-background text-foreground">
@@ -30,6 +32,16 @@ export default async function ChatPage({
         bot={chat.bot}
         members={chat.members}
         isGroup={chat.kind === "group"}
+        availableBots={availableBots}
+        group={
+          chat.kind === "group"
+            ? {
+                id: chat.id,
+                name: chat.name ?? "Untitled group",
+                members: chat.members,
+              }
+            : undefined
+        }
       />
       <Chat
         key={chat.id}

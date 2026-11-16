@@ -145,10 +145,15 @@ Each contribution shows its bot's name and avatar. Handoffs cannot revisit a
 bot, and a turn allows at most three handoffs. Group chats do not have a
 desktop panel.
 
+Click a group's name in the chat header to rename it, add or remove members,
+or delete it with confirmation. Updates require at least two bots. Deleting
+the group keeps its bots and their direct chats.
+
 Run the group validation and recipient-selection checks with:
 
 ```bash
 node --experimental-strip-types --test scripts/group-chat.test.mjs
+node --experimental-strip-types --test scripts/group-chat-actions.test.mjs
 node --experimental-strip-types --test scripts/handoff.test.mjs
 node --experimental-strip-types --test scripts/memory.test.mjs
 ```

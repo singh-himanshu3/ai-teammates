@@ -1,11 +1,21 @@
 "use client"
 
-import { useEffect, useId, type ComponentProps } from "react"
+import {
+  useEffect,
+  useId,
+  useState,
+  type ComponentProps,
+  type ReactElement,
+} from "react"
 import { useRouter } from "next/navigation"
 import { Controller, useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 
-import { createGroupChat } from "@/actions/group-chat"
+import {
+  createGroupChat,
+  updateGroupChat,
+  deleteGroupChat,
+} from "@/actions/group-chat"
 import { ChatAvatar } from "@/components/chat-avatar"
 import {
   Dialog,
@@ -15,7 +25,18 @@ import {
   DialogDescription,
   DialogFooter,
   DialogClose,
+  DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
 import {
   Field,
   FieldGroup,
@@ -36,32 +57,79 @@ import {
   type ChatBotProfile,
 } from "@/lib/db/schema"
 
+export type EditableGroupChat = {
+  id: string
+  name: string
+  members: ChatBotProfile[]
+}
+
 export function GroupChatDialog({
   bots,
-  open,
+  open: controlledOpen,
   onOpenChange,
   finalFocus,
+  children,
+  group,
 }: {
   bots: ChatBotProfile[]
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  children?: ReactElement
+  group?: EditableGroupChat
   finalFocus?: ComponentProps<typeof DialogContent>["finalFocus"]
 }) {
   const id = useId()
   const router = useRouter()
+  const [internalOpen, setInternalOpen] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = onOpenChange ?? setInternalOpen
+  const deleteForm = useForm({ defaultValues: {} })
   const form = useForm<CreateGroupChatInput>({
     resolver: zodResolver(createGroupChatSchema),
-    defaultValues: { name: "", botIds: [] },
+    defaultValues: {
+      name: group?.name ?? "",
+      botIds: group?.members.map((bot) => bot.id) ?? [],
+    },
   })
-  const pending = form.formState.isSubmitting
+  const deleting = deleteForm.formState.isSubmitting
+  const pending = form.formState.isSubmitting || deleting
   useEffect(() => {
-    if (open) form.reset({ name: "", botIds: [] })
-  }, [open, form])
+    if (open) {
+      form.reset({
+        name: group?.name ?? "",
+        botIds: group?.members.map((bot) => bot.id) ?? [],
+      })
+      deleteForm.reset()
+    }
+  }, [open, form, group, deleteForm])
+
+  async function onDelete() {
+    if (!group) return
+    deleteForm.clearErrors("root")
+    try {
+      const result = await deleteGroupChat(group.id)
+      if (!result.success) {
+        deleteForm.setError("root", { message: result.error })
+        return
+      }
+      setConfirmDelete(false)
+      setOpen(false)
+      toast.add({ title: `${group.name} was deleted.`, type: "success" })
+      router.replace("/")
+    } catch {
+      deleteForm.setError("root", {
+        message: "Your group could not be deleted. Please try again.",
+      })
+    }
+  }
 
   async function submit(values: CreateGroupChatInput) {
     form.clearErrors("root")
     try {
-      const result = await createGroupChat(values)
+      const result = group
+        ? await updateGroupChat(group.id, values)
+        : await createGroupChat(values)
       if (!result.success) {
         for (const name of ["name", "botIds"] as const) {
           const message = result.fieldErrors?.[name]?.[0]
@@ -70,12 +138,19 @@ export function GroupChatDialog({
         form.setError("root", { message: result.error })
         return
       }
-      onOpenChange(false)
-      toast.add({ title: `${values.name} was created.`, type: "success" })
-      router.push(`/chats/${encodeURIComponent(result.chatId)}`)
+      setOpen(false)
+      toast.add({
+        title: group
+          ? `${values.name} was updated.`
+          : `${values.name} was created.`,
+        type: "success",
+      })
+      if (!group) router.push(`/chats/${encodeURIComponent(result.chatId)}`)
     } catch {
       form.setError("root", {
-        message: "Your group could not be created. Please try again.",
+        message: group
+          ? "Your group could not be updated. Please try again."
+          : "Your group could not be created. Please try again.",
       })
     }
   }
@@ -84,18 +159,23 @@ export function GroupChatDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!pending) onOpenChange(next)
+        if (!pending && !confirmDelete) setOpen(next)
       }}
     >
+      {children && <DialogTrigger render={children} />}
       <DialogContent
         finalFocus={finalFocus}
         showCloseButton={!pending}
         className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-[460px]"
       >
         <DialogHeader>
-          <DialogTitle>New group chat</DialogTitle>
+          <DialogTitle>
+            {group ? "Edit group chat" : "New group chat"}
+          </DialogTitle>
           <DialogDescription>
-            Name the group and pick which bots are in it.
+            {group
+              ? "Change the name and add or remove bots."
+              : "Name the group and pick which bots are in it."}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -190,6 +270,62 @@ export function GroupChatDialog({
             )}
           </FieldGroup>
           <DialogFooter>
+            {group && (
+              <AlertDialog
+                open={confirmDelete}
+                onOpenChange={(next) => {
+                  if (!pending) {
+                    deleteForm.clearErrors("root")
+                    setConfirmDelete(next)
+                  }
+                }}
+              >
+                <AlertDialogTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={pending}
+                      className="sm:mr-auto"
+                    />
+                  }
+                >
+                  Delete group
+                </AlertDialogTrigger>
+                <AlertDialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto">
+                  <form
+                    onSubmit={(event) => {
+                      event.stopPropagation()
+                      void deleteForm.handleSubmit(onDelete)(event)
+                    }}
+                    className="flex flex-col gap-4"
+                  >
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete {group.name}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This permanently deletes this group chat. The bots and
+                        their individual chats will remain. This cannot be
+                        undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <FieldError errors={[deleteForm.formState.errors.root]} />
+                    <AlertDialogFooter>
+                      <AlertDialogCancel type="button" disabled={pending}>
+                        Cancel
+                      </AlertDialogCancel>
+                      <Button
+                        type="submit"
+                        variant="destructive"
+                        disabled={pending}
+                      >
+                        {deleting && <Spinner data-icon="inline-start" />}
+                        {deleting ? "Deleting group…" : "Delete group"}
+                      </Button>
+                    </AlertDialogFooter>
+                  </form>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
             <DialogClose
               render={
                 <Button type="button" variant="outline" disabled={pending} />
@@ -198,8 +334,16 @@ export function GroupChatDialog({
               Cancel
             </DialogClose>
             <Button type="submit" disabled={pending || bots.length < 2}>
-              {pending && <Spinner data-icon="inline-start" />}
-              {pending ? "Creating…" : "Create group"}
+              {form.formState.isSubmitting && (
+                <Spinner data-icon="inline-start" />
+              )}
+              {group
+                ? form.formState.isSubmitting
+                  ? "Saving changes…"
+                  : "Save changes"
+                : pending
+                  ? "Creating…"
+                  : "Create group"}
             </Button>
           </DialogFooter>
         </form>
