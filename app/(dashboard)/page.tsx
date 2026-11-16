@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto"
 import { auth } from "@clerk/nextjs/server"
+import { redirect } from "next/navigation"
 import { PlusIcon } from "lucide-react"
 
 import { ChatAvatar } from "@/components/chat-avatar"
 import { BotDialog } from "@/components/bot-dialog"
 import { Button } from "@/components/ui/button"
+import { getUserChats } from "@/queries/bot"
 import {
   Empty,
   EmptyContent,
@@ -15,6 +17,8 @@ import {
 
 export default async function Page() {
   await auth.protect()
+  const [chat] = await getUserChats()
+  if (chat) redirect(`/chats/${encodeURIComponent(chat.id)}`)
   const avatarSeed = randomUUID()
 
   return (

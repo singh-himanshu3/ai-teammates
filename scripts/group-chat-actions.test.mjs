@@ -10,6 +10,7 @@ const state = {
   batches: 0,
   revalidated: [],
   authenticated: true,
+  paid: true,
 }
 const client = {
   query(sql, params) {
@@ -25,13 +26,41 @@ globalThis.__groupActionTest = { state, db: drizzle({ client }) }
 const source = (text) => `data:text/javascript,${encodeURIComponent(text)}`
 const mocks = {
   "@clerk/nextjs/server": source(
-    'export const auth = { protect: async () => { if (!globalThis.__groupActionTest.state.authenticated) throw new Error("Unauthorized"); return { userId: "owner-one" }; } };'
+    'export const auth = { protect: async () => { if (!globalThis.__groupActionTest.state.authenticated) throw new Error("Unauthorized"); return { userId: "owner-one", has: ({ plan }) => plan === "user:pro" && globalThis.__groupActionTest.state.paid }; } };'
   ),
   "next/cache": source(
     "export const revalidatePath = (...args) => globalThis.__groupActionTest.state.revalidated.push(args);"
   ),
   "@/lib/db": source("export const db = globalThis.__groupActionTest.db;"),
   "@/lib/db/schema": new URL("../lib/db/schema.ts", import.meta.url).href,
+  "@/lib/billing/shared": new URL("../lib/billing/shared.ts", import.meta.url)
+    .href,
+  "@/queries/chat": source(
+    'export async function getChat() { throw new Error("Must not load a chat for free users"); }'
+  ),
+  "@/lib/agent/context": source(
+    'export async function getAgentContext() { throw new Error("Must not resolve a sandbox for free users"); } export async function claimBotSandbox() { throw new Error("Must not assign a sandbox for free users"); }'
+  ),
+  "@/lib/agent/sandbox": source(
+    'export function getDaytonaClient() { throw new Error("Must not connect Daytona for free users"); } export function ensureBotSandbox() { throw new Error("Must not provision a sandbox for free users"); }'
+  ),
+  ...Object.fromEntries(
+    [
+      "computer-tools",
+      "memory",
+      "handoff",
+      "select-bot",
+      "vnc",
+      "sandbox-errors",
+    ].map((name) => [
+      `@/lib/agent/${name}`,
+      new URL(`../lib/agent/${name}.ts`, import.meta.url).href,
+    ])
+  ),
+  "@/lib/chat-client-data": new URL(
+    "../lib/chat-client-data.ts",
+    import.meta.url
+  ).href,
 }
 const hooks = registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -42,6 +71,11 @@ const hooks = registerHooks({
 })
 const { updateGroupChat, deleteGroupChat } =
   await import("../actions/group-chat.ts")
+const { createGroupChat } = await import("../actions/group-chat.ts")
+const { createBot, updateBot, deleteBot } = await import("../actions/bot.ts")
+const { connectChatDesktop } = await import("../actions/desktop.ts")
+const { startChatSession, mintChatAccessToken, loadChatTranscript } =
+  await import("../actions/chat.ts")
 after(() => {
   hooks.deregister()
   delete globalThis.__groupActionTest
@@ -53,9 +87,49 @@ function reset(rows = []) {
     batches: 0,
     revalidated: [],
     authenticated: true,
+    paid: true,
   })
 }
 const input = { name: "  Weekend plans  ", botIds: ["bot-one", "bot-two"] }
+
+test("free users cannot create, modify, or delete bots or group chats", async () => {
+  reset()
+  state.paid = false
+  for (const action of [
+    () => createBot({}),
+    () => updateBot("bot-one", {}),
+    () => deleteBot("bot-one"),
+    () => createGroupChat(input),
+    () => updateGroupChat("group-one", input),
+    () => deleteGroupChat("group-one"),
+  ]) {
+    const result = await action()
+    assert.equal(result.success, false)
+    assert.equal(result.code, "PAID_PLAN_REQUIRED")
+  }
+  assert.equal(state.queries.length, 0)
+  assert.equal(state.batches, 0)
+})
+
+test("free users cannot start sessions, obtain transport tokens, load transcripts, or connect desktops", async () => {
+  reset()
+  state.paid = false
+  assert.equal(
+    (await connectChatDesktop("chat-one")).code,
+    "PAID_PLAN_REQUIRED"
+  )
+  for (const action of [
+    () =>
+      startChatSession({
+        chatId: "chat-one",
+        clientData: { provider: "google" },
+      }),
+    () => mintChatAccessToken("chat-one"),
+    () => loadChatTranscript({ chatId: "chat-one" }),
+  ])
+    await assert.rejects(action(), /Upgrade to Pro/)
+  assert.equal(state.queries.length, 0)
+})
 
 test("group mutations require authentication before database access", async () => {
   reset()

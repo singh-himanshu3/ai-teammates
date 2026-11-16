@@ -5,6 +5,8 @@ import { RefreshCwIcon, XIcon } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { connectChatDesktop } from "@/actions/desktop"
+import { usePaidAccess } from "@/components/paid-access"
+import { isPaidPlanError } from "@/lib/billing/shared"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
@@ -33,6 +35,7 @@ export function ChatDesktopViewer({
   name: string
 }) {
   const previewHost = useRef<HTMLDivElement>(null)
+  const { showUpgrade } = usePaidAccess()
   const dialogHost = useRef<HTMLDivElement | null>(null)
   const session = useRef<Session | null>(null)
   const connection = useRef<ReturnType<typeof loadConnection> | null>(null)
@@ -69,6 +72,7 @@ export function ChatDesktopViewer({
       .then(([{ default: Client }, result]) => {
         if (cancelled) return
         if (!result.success) {
+          if (isPaidPlanError(result.error)) showUpgrade()
           fail(result.error)
           return
         }
@@ -108,7 +112,7 @@ export function ChatDesktopViewer({
       active?.disconnect()
       if (session.current === active) session.current = null
     }
-  }, [chatId, attempt])
+  }, [chatId, attempt, showUpgrade])
 
   function reconnect() {
     connection.current = null

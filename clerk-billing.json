@@ -1,0 +1,34 @@
+{
+  "billing": {
+    "user_enabled": true,
+    "features": {
+      "bots": {
+        "name": "AI bots",
+        "description": "Create and use bots in direct and group chats.",
+        "publicly_visible": true
+      },
+      "sandboxes": {
+        "name": "Sandbox desktops",
+        "description": "Create, connect to, and use each bot's sandbox and memory.",
+        "publicly_visible": true
+      }
+    },
+    "plans": {
+      "free_user": {
+        "description": "Bot and sandbox features are locked.",
+        "features": []
+      },
+      "pro": {
+        "name": "Pro",
+        "description": "All bot and sandbox features.",
+        "amount": 2000,
+        "currency": "usd",
+        "payer_type": "user",
+        "is_recurring": true,
+        "publicly_visible": true,
+        "free_trial_enabled": false,
+        "features": ["bots", "sandboxes"]
+      }
+    }
+  }
+}

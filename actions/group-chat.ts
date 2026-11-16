@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { db } from "@/lib/db"
+import { PAID_PLAN, paidPlanFailure } from "@/lib/billing/shared"
 import {
   bots,
   chats,
@@ -15,7 +16,8 @@ import {
 } from "@/lib/db/schema"
 
 export async function createGroupChat(input: unknown) {
-  const { userId } = await auth.protect()
+  const { userId, has } = await auth.protect()
+  if (!has({ plan: PAID_PLAN })) return paidPlanFailure
   const parsed = createGroupChatSchema.safeParse(input)
   if (!parsed.success) {
     return {
@@ -59,7 +61,8 @@ export async function createGroupChat(input: unknown) {
 const groupIdSchema = z.string().trim().min(1).max(100)
 
 export async function updateGroupChat(groupId: unknown, input: unknown) {
-  const { userId } = await auth.protect()
+  const { userId, has } = await auth.protect()
+  if (!has({ plan: PAID_PLAN })) return paidPlanFailure
   const parsedId = groupIdSchema.safeParse(groupId)
   const parsed = createGroupChatSchema.safeParse(input)
   if (!parsed.success) {
@@ -128,7 +131,8 @@ export async function updateGroupChat(groupId: unknown, input: unknown) {
 }
 
 export async function deleteGroupChat(groupId: unknown) {
-  const { userId } = await auth.protect()
+  const { userId, has } = await auth.protect()
+  if (!has({ plan: PAID_PLAN })) return paidPlanFailure
   const parsedId = groupIdSchema.safeParse(groupId)
   if (!parsedId.success)
     return { success: false as const, error: "This group could not be found." }

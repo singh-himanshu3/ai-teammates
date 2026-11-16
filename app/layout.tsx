@@ -39,8 +39,8 @@ export default function RootLayout({
           appearance={{ theme: shadcn }}
           signInUrl="/sign-in"
           signUpUrl="/sign-up"
-          signInFallbackRedirectUrl="/dashboard"
-          signUpFallbackRedirectUrl="/dashboard"
+          signInFallbackRedirectUrl="/"
+          signUpFallbackRedirectUrl="/"
           afterSignOutUrl="/"
         >
           <ThemeProvider>
@@ -58,4 +58,3 @@ export default function RootLayout({
     </html>
   )
 }
-

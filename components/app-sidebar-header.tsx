@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { SidebarHeader } from "@/components/ui/sidebar"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
+import { usePaidAccess } from "@/components/paid-access"
 
 type SearchChat = {
   id: string
@@ -50,6 +51,7 @@ export function AppSidebarHeader({
   bots: ChatBotProfile[]
 }) {
   const router = useRouter()
+  const { guard } = usePaidAccess()
   const isMac = useSyncExternalStore(
     subscribeToPlatform,
     getIsMac,
@@ -95,11 +97,19 @@ export function AppSidebarHeader({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
               <DropdownMenuGroup>
-                <DropdownMenuItem onClick={() => setBotDialogOpen(true)}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (guard()) setBotDialogOpen(true)
+                  }}
+                >
                   <PlusIcon />
                   Create new bot
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setGroupDialogOpen(true)}>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (guard()) setGroupDialogOpen(true)
+                  }}
+                >
                   <UsersIcon />
                   Create a groupchat
                 </DropdownMenuItem>

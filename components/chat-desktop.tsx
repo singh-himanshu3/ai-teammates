@@ -8,6 +8,7 @@ import { usePanelRef } from "react-resizable-panels"
 import { Button } from "@/components/ui/button"
 import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable"
 import { ChatDesktopViewer } from "@/components/chat-desktop-viewer"
+import { PaidAccess, usePaidAccess } from "@/components/paid-access"
 
 function useDesktopState() {
   const panelRef = usePanelRef()
@@ -52,6 +53,7 @@ export function ChatDesktopProvider({ children }: { children: ReactNode }) {
 
 export function ChatDesktopToggle() {
   const { panelId, isOpen, toggle } = useDesktop()
+  const { guard } = usePaidAccess()
   return (
     <Button
       type="button"
@@ -60,7 +62,9 @@ export function ChatDesktopToggle() {
       aria-label={isOpen ? "Close desktop panel" : "Open desktop panel"}
       aria-expanded={isOpen}
       aria-controls={panelId}
-      onClick={toggle}
+      onClick={() => {
+        if (isOpen || guard()) toggle()
+      }}
     >
       <MonitorIcon />
     </Button>
@@ -99,7 +103,11 @@ export function ChatDesktopPanel({
       role="region"
       aria-label="Desktop panel"
     >
-      {hasOpened && <ChatDesktopViewer chatId={chatId} name={name} />}
+      {hasOpened && (
+        <PaidAccess>
+          <ChatDesktopViewer chatId={chatId} name={name} />
+        </PaidAccess>
+      )}
     </ResizablePanel>
   )
 }

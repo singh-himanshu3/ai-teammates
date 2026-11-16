@@ -8,9 +8,11 @@ import { z } from "zod"
 
 import { db } from "@/lib/db"
 import { bots, chatMembers, chats, createBotSchema } from "@/lib/db/schema"
+import { PAID_PLAN, paidPlanFailure } from "@/lib/billing/shared"
 
 export async function createBot(input: unknown) {
-  const { userId } = await auth.protect()
+  const { userId, has } = await auth.protect()
+  if (!has({ plan: PAID_PLAN })) return paidPlanFailure
   const parsed = createBotSchema.safeParse(input)
 
   if (!parsed.success) {
@@ -45,7 +47,8 @@ export async function createBot(input: unknown) {
 const botIdSchema = z.string().trim().min(1).max(100)
 
 export async function updateBot(botId: unknown, input: unknown) {
-  const { userId } = await auth.protect()
+  const { userId, has } = await auth.protect()
+  if (!has({ plan: PAID_PLAN })) return paidPlanFailure
   const parsed = createBotSchema.safeParse(input)
   const parsedId = botIdSchema.safeParse(botId)
 
@@ -83,7 +86,8 @@ export async function updateBot(botId: unknown, input: unknown) {
 }
 
 export async function deleteBot(botId: unknown) {
-  const { userId } = await auth.protect()
+  const { userId, has } = await auth.protect()
+  if (!has({ plan: PAID_PLAN })) return paidPlanFailure
   const parsedId = botIdSchema.safeParse(botId)
   if (!parsedId.success) {
     return { success: false as const, error: "This bot could not be found." }

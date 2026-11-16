@@ -8,11 +8,13 @@ import { ensureBotSandbox, getDaytonaClient } from "@/lib/agent/sandbox"
 import { prepareDesktopPreview } from "@/lib/agent/vnc"
 import { sandboxErrorMessage } from "@/lib/agent/sandbox-errors"
 import { getChat } from "@/queries/chat"
+import { PAID_PLAN, paidPlanFailure } from "@/lib/billing/shared"
 
 const chatIdSchema = z.string().trim().min(1).max(100)
 
 export async function connectChatDesktop(input: unknown) {
-  const { userId } = await auth.protect()
+  const { userId, has } = await auth.protect()
+  if (!has({ plan: PAID_PLAN })) return paidPlanFailure
   const parsed = chatIdSchema.safeParse(input)
   const chat = parsed.success ? await getChat(parsed.data) : undefined
   if (!chat || !parsed.success) {

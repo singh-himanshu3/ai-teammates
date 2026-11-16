@@ -51,6 +51,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
+import { usePaidAccess } from "@/components/paid-access"
+import { isPaidPlanError } from "@/lib/billing/shared"
 import {
   createGroupChatSchema,
   type CreateGroupChatInput,
@@ -80,6 +82,7 @@ export function GroupChatDialog({
 }) {
   const id = useId()
   const router = useRouter()
+  const { guard, showUpgrade } = usePaidAccess()
   const [internalOpen, setInternalOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const open = controlledOpen ?? internalOpen
@@ -105,11 +108,13 @@ export function GroupChatDialog({
   }, [open, form, group, deleteForm])
 
   async function onDelete() {
+    if (!guard()) return
     if (!group) return
     deleteForm.clearErrors("root")
     try {
       const result = await deleteGroupChat(group.id)
       if (!result.success) {
+        if (isPaidPlanError(result.error)) showUpgrade()
         deleteForm.setError("root", { message: result.error })
         return
       }
@@ -125,12 +130,14 @@ export function GroupChatDialog({
   }
 
   async function submit(values: CreateGroupChatInput) {
+    if (!guard()) return
     form.clearErrors("root")
     try {
       const result = group
         ? await updateGroupChat(group.id, values)
         : await createGroupChat(values)
       if (!result.success) {
+        if (isPaidPlanError(result.error)) showUpgrade()
         for (const name of ["name", "botIds"] as const) {
           const message = result.fieldErrors?.[name]?.[0]
           if (message) form.setError(name, { message })
@@ -159,6 +166,7 @@ export function GroupChatDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
+        if (next && !guard()) return
         if (!pending && !confirmDelete) setOpen(next)
       }}
     >

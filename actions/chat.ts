@@ -17,6 +17,7 @@ import {
 import { selectChatBot } from "@/lib/agent/select-bot"
 import { createHandoffTool } from "@/lib/agent/handoff"
 import { createMemoryTools } from "@/lib/agent/memory"
+import { PAID_PLAN, PaidPlanRequiredError } from "@/lib/billing/shared"
 
 const chatIdSchema = z.string().min(1).max(100)
 const startSession =
@@ -24,7 +25,8 @@ const startSession =
 const loadTranscript = chat.createLoadTranscriptAction(defaultStorage)
 
 async function authorizeChat(chatId: string) {
-  await auth.protect()
+  const { has } = await auth.protect()
+  if (!has({ plan: PAID_PLAN })) throw new PaidPlanRequiredError()
   chatIdSchema.parse(chatId)
   const conversation = await getChat(chatId)
   if (!conversation) throw new Error("Chat not found.")

@@ -9,7 +9,8 @@ and use **Create account** in the navigation to get started.
 
 - `/` checks `await auth.protect()` on the server and requires a session.
 - `/sign-in` and `/sign-up` use Clerk's prebuilt authentication forms.
-- `/dashboard` checks `await auth.protect()` on the server and requires a session.
+- `/dashboard` is an authenticated redirect to the chat workspace at `/`.
+- `/` opens your newest chat when one exists; otherwise it shows bot creation.
 - The account menu includes profile settings and sign out.
 
 The project is linked to the `ai-teammates` Clerk application. Local development
@@ -55,6 +56,49 @@ Nano IDs for the primary key and default avatar seed when inserting rows.
 TypeScript types `Bot` and `NewBot` are exported from `lib/db/schema.ts`.
 Use schema pushes only; do not generate or run migrations. Review the proposed
 changes and confirm the target database when running `db:push`.
+
+## Billing
+
+Clerk Billing uses personal subscriptions. Pro (`pro`) costs $20 USD/month and
+unlocks all bot and sandbox features; free accounts cannot create, edit, delete,
+or use bots, group chats, or sandbox desktops. Blocked actions show an error
+toast with a **View pricing** button linking to `/pricing`. Pricing is not in
+the sidebar. Clerk's pricing table handles checkout and subscription changes.
+
+The plan catalog is in `clerk-billing.json`. Preview and apply it to a linked
+Clerk instance with:
+
+```bash
+npx clerk@latest config patch --file clerk-billing.json --dry-run
+npx clerk@latest config patch --file clerk-billing.json --yes
+```
+
+The currently linked development instance has billing enabled and both Free
+and Pro configured. Production requires its own Clerk production instance
+and connected payment gateway.
+
+The app checks Clerk's personal `user:pro` entitlement. Trigger workers check
+the chat owner's current subscription through Clerk's Backend API before model
+steps and sandbox access, including already-open sessions. `CLERK_SECRET_KEY`
+must be set in both the Next.js server and Trigger worker, targeting the same
+Clerk instance. Existing application keys remain unchanged. Local startup:
+
+```bash
+npm run dev
+# In a second terminal; explicitly loads .env.local for the worker:
+npm run trigger:dev
+```
+
+Use the matching production Clerk key in deployed workers; never put secrets
+in source control. No webhook mirror, balance, ledger, or usage-metering table
+is used: Clerk remains the subscription source of truth. The billing SDK and
+browser bundle versions are pinned because the billing APIs are experimental.
+
+Run the billing and authorization tests with:
+
+```bash
+node --experimental-strip-types --test scripts/billing.test.mjs scripts/group-chat-actions.test.mjs
+```
 
 ## AI chat
 

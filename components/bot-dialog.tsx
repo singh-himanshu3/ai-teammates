@@ -48,6 +48,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { createBotSchema, type Bot, type CreateBotInput } from "@/lib/db/schema"
+import { usePaidAccess } from "@/components/paid-access"
+import { isPaidPlanError } from "@/lib/billing/shared"
 
 export type EditableBot = Pick<
   Bot,
@@ -93,6 +95,7 @@ export function BotDialog({
   bot?: EditableBot
 }) {
   const router = useRouter()
+  const { guard, showUpgrade } = usePaidAccess()
   const [internalOpen, setInternalOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const open = controlledOpen ?? internalOpen
@@ -126,11 +129,13 @@ export function BotDialog({
   }, [open, form, bot, deleteForm])
 
   async function onDelete() {
+    if (!guard()) return
     if (!bot) return
     deleteForm.clearErrors("root")
     try {
       const result = await deleteBot(bot.id)
       if (!result.success) {
+        if (isPaidPlanError(result.error)) showUpgrade()
         deleteForm.setError("root", { message: result.error })
         return
       }
@@ -146,6 +151,7 @@ export function BotDialog({
   }
 
   async function onSubmit(values: CreateBotInput) {
+    if (!guard()) return
     form.clearErrors("root")
 
     try {
@@ -154,6 +160,7 @@ export function BotDialog({
         : await createBot(values)
 
       if (!result.success) {
+        if (isPaidPlanError(result.error)) showUpgrade()
         if (result.fieldErrors) {
           for (const field of [
             "name",
@@ -188,6 +195,7 @@ export function BotDialog({
       open={open}
       onOpenChange={(nextOpen) => {
         if (pending || confirmDelete) return
+        if (nextOpen && !guard()) return
         setOpen(nextOpen)
       }}
     >

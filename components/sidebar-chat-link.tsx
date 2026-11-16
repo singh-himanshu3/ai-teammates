@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import type { ComponentProps } from "react"
 
 import { SidebarMenuButton } from "@/components/ui/sidebar"
+import { usePaidAccess } from "@/components/paid-access"
 
 export function SidebarChatLink({
   href,
@@ -13,13 +14,22 @@ export function SidebarChatLink({
   href: string
 }) {
   const pathname = usePathname()
+  const { guard } = usePaidAccess()
   const isActive = pathname === href
 
   return (
     <SidebarMenuButton
       {...props}
       isActive={isActive}
-      render={<Link href={href} aria-current={isActive ? "page" : undefined} />}
+      render={
+        <Link
+          href={href}
+          aria-current={isActive ? "page" : undefined}
+          onClick={(event) => {
+            if (!guard()) event.preventDefault()
+          }}
+        />
+      }
     />
   )
 }

@@ -3,12 +3,14 @@ import { drizzle } from "drizzle-orm/neon-http"
 
 import { bots, chatMembers, chats } from "@/lib/db/schema"
 import { selectChatBot } from "./select-bot.ts"
+import { assertPaidUser } from "../billing/server.ts"
 
 export async function getAgentContext(chatId: string, botId?: string) {
   const db = drizzle(process.env.DATABASE_URL!)
   const rows = await db
     .select({
       kind: chats.kind,
+      userId: chats.userId,
       bot: {
         id: bots.id,
         userId: bots.userId,
@@ -30,8 +32,10 @@ export async function getAgentContext(chatId: string, botId?: string) {
 
   if (!rows.length) throw new Error("Chat not found.")
   const kind = rows[0].kind
+  const userId = rows[0].userId
+  await assertPaidUser(userId)
   const members = rows.flatMap((row) => (row.bot ? [row.bot] : []))
-  return { kind, members, bot: selectChatBot(kind, members, botId) }
+  return { kind, userId, members, bot: selectChatBot(kind, members, botId) }
 }
 
 export async function claimBotSandbox(

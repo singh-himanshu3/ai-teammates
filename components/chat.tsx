@@ -21,6 +21,8 @@ import type { teammateChat } from "@/trigger/chat"
 import type { ChatBotProfile } from "@/lib/db/schema"
 import { ChatAvatar } from "@/components/chat-avatar"
 import { chatDataSchemas } from "@/lib/chat-client-data"
+import { PaidAccess, usePaidAccess } from "@/components/paid-access"
+import { isPaidPlanError } from "@/lib/billing/shared"
 
 import {
   Conversation,
@@ -66,7 +68,19 @@ const providers = [
 
 type ChatMessage = InferChatUIMessage<typeof teammateChat>
 
-export function Chat({
+export function Chat(props: {
+  chatId: string
+  kind: "direct" | "group"
+  members: ChatBotProfile[]
+}) {
+  return (
+    <PaidAccess>
+      <PaidChat {...props} />
+    </PaidAccess>
+  )
+}
+
+function PaidChat({
   chatId,
   kind,
   members,
@@ -168,6 +182,7 @@ function ChatConversation({
   const [input, setInput] = useState("")
   const [editingMessageId, setEditingMessageId] = useState<string>()
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const { guard, showUpgrade } = usePaidAccess()
   const {
     messages,
     sendMessage,
@@ -180,6 +195,9 @@ function ChatConversation({
     transport,
     messages: initialMessages,
     resume: initialMessages.length > 0,
+    onError: (error) => {
+      if (isPaidPlanError(error)) showUpgrade()
+    },
     dataPartSchemas: chatDataSchemas,
     onData: (part) => {
       if (
@@ -329,7 +347,9 @@ function ChatConversation({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => void regenerate()}
+                onClick={() => {
+                  if (guard()) void regenerate()
+                }}
               >
                 Try again
               </Button>
@@ -338,6 +358,7 @@ function ChatConversation({
         )}
         <PromptInput
           onSubmit={({ text }) => {
+            if (!guard()) return
             if (busy || !text.trim() || (isGroup && !botId)) return
             const recipient = isGroup
               ? members.find((member) => member.id === botId)

@@ -28,6 +28,8 @@ import {
 } from "@/lib/agent/handoff"
 import { buildAgentInstructions } from "@/lib/agent/instructions"
 import { createMemoryTools, loadMemoryContext } from "@/lib/agent/memory"
+import { assertPaidUser } from "@/lib/billing/server"
+import { PaidPlanRequiredError } from "@/lib/billing/shared"
 
 async function resolveChatSandbox(
   chatId: string,
@@ -140,6 +142,7 @@ export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
       instructions: buildAgentInstructions(bot, kind, members),
       prepareStep: async ({ stepNumber }) => {
         signal.throwIfAborted()
+        await assertPaidUser(initialContext.userId)
         const next = await completeHandoff(
           handoff,
           (botId) => getAgentContext(chatId, botId),
@@ -183,6 +186,7 @@ export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
   uiMessageStreamOptions: {
     onError(error) {
       console.error("Chat generation failed", error)
+      if (error instanceof PaidPlanRequiredError) return error.message
       if (error instanceof SandboxSetupError) return error.message
       const cause = RetryError.isInstance(error) ? error.lastError : error
       if (APICallError.isInstance(cause)) {
