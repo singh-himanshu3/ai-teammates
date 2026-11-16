@@ -122,6 +122,43 @@ test("file tools round trip Unicode contents inside the resolved sandbox", async
   )
 })
 
+test("bot memory saved in a direct chat is available in a group and after a sandbox stop", async () => {
+  const { sandbox } = fixture()
+  const directChat = createComputerTools(async () => sandbox)
+  const memory = "- User prefers concise answers.\n"
+  await execute(directChat.writeFiles, {
+    files: [{ path: "MEMORY.md", content: memory }],
+  })
+
+  // A separate chat/turn gets fresh tools but resolves the same bot's sandbox.
+  sandbox.state = "stopped"
+  const groupChat = createComputerTools(async () => sandbox)
+  const recalled = await execute(groupChat.readFile, { path: "MEMORY.md" })
+  assert.equal(recalled.content, memory)
+  assert.equal(sandbox.state, "started")
+  await execute(groupChat.writeFiles, {
+    files: [
+      {
+        path: "MEMORY.md",
+        content: `${recalled.content}- Project deadline: Friday.\n`,
+      },
+    ],
+  })
+  assert.equal(
+    (await execute(directChat.readFile, { path: "MEMORY.md" })).content,
+    `${memory}- Project deadline: Friday.\n`
+  )
+
+  const other = fixture()
+  other.sandbox.id = "another-bot-sandbox"
+  other.files.set("MEMORY.md", Buffer.from(""))
+  const otherBot = createComputerTools(async () => other.sandbox)
+  assert.equal(
+    (await execute(otherBot.readFile, { path: "MEMORY.md" })).content,
+    ""
+  )
+})
+
 test("large text and command outputs are bounded and marked truncated", async () => {
   const { sandbox, files } = fixture()
   files.set("/workspace/large.txt", Buffer.from("x".repeat(60000)))

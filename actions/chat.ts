@@ -16,6 +16,7 @@ import {
 } from "@/lib/chat-client-data"
 import { selectChatBot } from "@/lib/agent/select-bot"
 import { createHandoffTool } from "@/lib/agent/handoff"
+import { createMemoryTools } from "@/lib/agent/memory"
 
 const chatIdSchema = z.string().min(1).max(100)
 const startSession =
@@ -71,6 +72,7 @@ export async function loadChatTranscript({ chatId }: { chatId: string }) {
             messages: transcript.messages,
             tools: {
               ...createComputerTools(async () => null),
+              ...createMemoryTools(async () => null),
               handoff: createHandoffTool(
                 async () => ({ kind: "direct", members: [] }),
                 () => ({ visited: [] })

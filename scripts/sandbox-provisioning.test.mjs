@@ -13,6 +13,14 @@ const bot = { id: "bot-one", sandboxId: null }
 function fixture() {
   const sandbox = {
     id: "sandbox-one",
+    state: "started",
+    getWorkDir: async () => "/home/daytona",
+    process: {
+      executeCommand: async (...args) => {
+        calls.push(["command", ...args])
+        return { exitCode: 0 }
+      },
+    },
     labels: { app: "ai-teammates", botId: bot.id },
   }
   const calls = []
@@ -70,7 +78,10 @@ test("an interrupted assignment recovers the existing named sandbox", async () =
   }).catch(() => {})
   const result = await ensureBotSandbox(bot, client, async (id) => id)
   assert.equal(result, sandbox)
-  assert.equal(calls.length, 0)
+  assert.deepEqual(
+    calls.map((call) => call[0]),
+    ["command", "command"]
+  )
 })
 
 test("concurrent creation resolves the winner by the stable sandbox name", async () => {
@@ -132,4 +143,55 @@ test("authentication and other lookup failures never fall back to creating a san
     /Credentials rejected/
   )
   assert.equal(calls.length, 0)
+})
+
+test("provisioning initializes blank memory without truncation before exposing the sandbox assignment", async () => {
+  const { client, calls } = fixture()
+  await ensureBotSandbox(bot, client, async (id) => {
+    assert.deepEqual(calls.at(-1), [
+      "command",
+      "touch -- MEMORY.md",
+      "/home/daytona",
+      undefined,
+      30,
+    ])
+    return id
+  })
+})
+
+test("failed memory initialization leaves the sandbox recoverable and unassigned", async () => {
+  const { sandbox, client } = fixture()
+  sandbox.process.executeCommand = async () => ({ exitCode: 1 })
+  await assert.rejects(
+    ensureBotSandbox(bot, client, async () =>
+      assert.fail("must not assign an uninitialized sandbox")
+    ),
+    /MEMORY.md could not be initialized/
+  )
+  // The named sandbox is recovered on retry, with the same non-truncating command.
+  client.get = async () => sandbox
+  let initialized = false
+  sandbox.process.executeCommand = async () => {
+    initialized = true
+    return { exitCode: 0 }
+  }
+  await ensureBotSandbox(bot, client, async (id) => {
+    assert.ok(initialized)
+    return id
+  })
+})
+
+test("a recovered stopped sandbox starts before memory is initialized", async () => {
+  const { sandbox, client, calls } = fixture()
+  sandbox.state = "stopped"
+  sandbox.start = async () => {
+    calls.push(["start"])
+    sandbox.state = "started"
+  }
+  client.get = async () => sandbox
+  await ensureBotSandbox(bot, client, async (id) => id)
+  assert.deepEqual(
+    calls.map((call) => call[0]),
+    ["start", "command"]
+  )
 })

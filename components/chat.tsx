@@ -466,6 +466,8 @@ function ChatTool({ part }: { part: ToolPart }) {
   if (name === "viewScreen") return null
 
   const titles: Record<string, string> = {
+    getMemory: "Read memory",
+    setMemory: "Save memory",
     handoff: "Hand off to teammate",
     bash: "Run command",
     readFile: "Read file",
@@ -479,6 +481,7 @@ function ChatTool({ part }: { part: ToolPart }) {
     showScreen: "Show screen",
   }
   const output = part.state === "output-available" ? part.output : undefined
+  const memoryTool = name === "getMemory" || name === "setMemory"
   const screen =
     name === "showScreen" &&
     typeof output === "object" &&
@@ -499,7 +502,9 @@ function ChatTool({ part }: { part: ToolPart }) {
         title={titles[name] ?? name}
       />
       <ToolContent>
-        {part.input !== undefined && <ToolInput input={part.input} />}
+        {!memoryTool && part.input !== undefined && (
+          <ToolInput input={part.input} />
+        )}
         {screen ? (
           <figure className="flex flex-col gap-2">
             <Image
@@ -516,7 +521,17 @@ function ChatTool({ part }: { part: ToolPart }) {
           </figure>
         ) : (
           <ToolOutput
-            output={name === "showScreen" ? undefined : output}
+            output={
+              name === "showScreen"
+                ? undefined
+                : memoryTool
+                  ? part.state === "output-available"
+                    ? name === "setMemory"
+                      ? "Memory saved."
+                      : "Memory loaded."
+                    : undefined
+                  : output
+            }
             errorText={
               part.state === "output-error" ? part.errorText : undefined
             }

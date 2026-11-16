@@ -124,6 +124,18 @@ node --experimental-strip-types --test scripts/sandbox-errors.test.mjs
 
 ## Group chats
 
+Each bot's sandbox starts with a blank `MEMORY.md` in its working directory.
+The `getMemory` and `setMemory` tools read and save this file using the active
+bot's sandbox relationship. Before every model step, the worker loads that
+bot's memory into its instructions, including after a handoff. Recall works
+across private and group chats without relying on the model to choose a read
+tool. Full memory contents are omitted from the chat's tool cards.
+
+Reading a bot with no sandbox returns empty memory without creating one; the
+first save provisions the sandbox. Memory follows the bot across chats and
+stops, stays separate from other bots, and is lost if its sandbox is deleted.
+Access failures are reported as unavailable memory rather than empty notes.
+
 Choose **Create a groupchat** from the sidebar's + menu, name the group, and
 select at least two bots. Pick a bot in the message composer's dropdown before
 sending a message; that bot starts the turn using the group's shared history.
@@ -138,6 +150,7 @@ Run the group validation and recipient-selection checks with:
 ```bash
 node --experimental-strip-types --test scripts/group-chat.test.mjs
 node --experimental-strip-types --test scripts/handoff.test.mjs
+node --experimental-strip-types --test scripts/memory.test.mjs
 ```
 
 ## Adding components

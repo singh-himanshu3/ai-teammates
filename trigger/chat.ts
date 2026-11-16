@@ -27,13 +27,27 @@ import {
   type HandoffState,
 } from "@/lib/agent/handoff"
 import { buildAgentInstructions } from "@/lib/agent/instructions"
+import { createMemoryTools, loadMemoryContext } from "@/lib/agent/memory"
+
+async function resolveChatSandbox(
+  chatId: string,
+  botId: string | undefined,
+  create: boolean
+) {
+  const { bot } = await getAgentContext(chatId, botId)
+  if (!bot || (!bot.sandboxId && !create)) return null
+  return ensureBotSandbox(bot, getDaytonaClient(), (sandboxId) =>
+    claimBotSandbox(bot, sandboxId)
+  )
+}
 
 const turnState = chat.local<{ handoff: HandoffState }>({
   id: "teammate-turn-handoff",
 })
-type TeammateTools = ReturnType<typeof createComputerTools> & {
-  handoff: ReturnType<typeof createHandoffTool>
-}
+type TeammateTools = ReturnType<typeof createComputerTools> &
+  ReturnType<typeof createMemoryTools> & {
+    handoff: ReturnType<typeof createHandoffTool>
+  }
 
 export type TeammateMessage = UIMessage<
   unknown,
@@ -54,16 +68,20 @@ export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
     ...createComputerTools(
       async () => {
         // Re-read the association for each action; sandbox IDs never come from the model.
-        const { bot } = await getAgentContext(
+        return resolveChatSandbox(
           chatId,
-          computerBotId(turnState.handoff, clientData?.botId)
-        )
-        if (!bot) return null
-        return ensureBotSandbox(bot, getDaytonaClient(), (sandboxId) =>
-          claimBotSandbox(bot, sandboxId)
+          computerBotId(turnState.handoff, clientData?.botId),
+          true
         )
       },
       { supportsImages: clientData?.provider !== "groq" }
+    ),
+    ...createMemoryTools((create) =>
+      resolveChatSandbox(
+        chatId,
+        computerBotId(turnState.handoff, clientData?.botId),
+        create
+      )
     ),
     handoff: createHandoffTool(
       () =>
@@ -136,7 +154,16 @@ export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
           })
         }
         return {
-          instructions: buildAgentInstructions(bot, kind, members),
+          instructions: buildAgentInstructions(
+            bot,
+            kind,
+            members,
+            await loadMemoryContext(
+              (create) =>
+                resolveChatSandbox(chatId, handoff.activeBotId, create),
+              signal
+            )
+          ),
           activeTools: (Object.keys(tools) as (keyof typeof tools)[]).filter(
             (name) =>
               name !== "handoff" ||

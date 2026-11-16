@@ -3,6 +3,7 @@ import {
   DaytonaConflictError,
   DaytonaNotFoundError,
   DaytonaTimeoutError,
+  type Sandbox,
 } from "@daytona/sdk"
 
 import { SandboxSetupError } from "./sandbox-errors.ts"
@@ -24,6 +25,28 @@ export function getDaytonaClient() {
 /** A stable name also recovers a sandbox if saving its ID was interrupted. */
 export function botSandboxName(botId: string) {
   return `teammate-${botId}`
+}
+
+/** Relative file-tool paths and this command use the same sandbox working directory. */
+async function initializeBotMemory(sandbox: Sandbox) {
+  if (["stopped", "archived", "paused"].includes(sandbox.state ?? "")) {
+    await sandbox.start(60)
+  } else if (sandbox.state !== "started") {
+    await sandbox.waitUntilStarted(60)
+  }
+  // touch creates an empty file atomically when absent and never truncates
+  // memory already written before a provisioning retry or concurrent claim.
+  const result = await sandbox.process.executeCommand(
+    "touch -- MEMORY.md",
+    await sandbox.getWorkDir(),
+    undefined,
+    30
+  )
+  if (result.exitCode !== 0) {
+    throw new SandboxSetupError(
+      "The sandbox's MEMORY.md could not be initialized. Please retry."
+    )
+  }
 }
 
 export async function ensureBotSandbox(
@@ -74,6 +97,7 @@ export async function ensureBotSandbox(
 
   // The database callback only fills a still-empty assignment and verifies that
   // the bot still belongs to the chat owner. A deleted bot cannot retain a sandbox.
+  await initializeBotMemory(sandbox)
   const assignedId = await claimAssignment(sandbox.id)
   if (!assignedId) {
     await client.delete(sandbox)
