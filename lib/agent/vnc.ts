@@ -11,13 +11,16 @@ export function vncWebSocketUrl(previewUrl: string) {
   return url.toString()
 }
 
-export async function prepareDesktopPreview(sandbox: Sandbox) {
+export async function prepareDesktopPreview(
+  sandbox: Sandbox,
+  validForSeconds = 3600
+) {
   if (["stopped", "archived", "paused"].includes(sandbox.state ?? "")) {
     await sandbox.start(60)
   } else if (sandbox.state !== "started") {
     await sandbox.waitUntilStarted(60)
   }
   await sandbox.computerUse.start()
-  const preview = await sandbox.getSignedPreviewUrl(6080, 3600)
+  const preview = await sandbox.getSignedPreviewUrl(6080, validForSeconds)
   return { url: vncWebSocketUrl(preview.url) }
 }

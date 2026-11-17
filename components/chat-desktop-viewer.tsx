@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { connectChatDesktop } from "@/actions/desktop"
 import { usePaidAccess } from "@/components/paid-access"
 import { isPaidPlanError } from "@/lib/billing/shared"
+import { isUsageLimitError } from "@/lib/usage/policy"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { AspectRatio } from "@/components/ui/aspect-ratio"
@@ -35,7 +36,7 @@ export function ChatDesktopViewer({
   name: string
 }) {
   const previewHost = useRef<HTMLDivElement>(null)
-  const { showUpgrade } = usePaidAccess()
+  const { showUpgrade, showUsage } = usePaidAccess()
   const dialogHost = useRef<HTMLDivElement | null>(null)
   const session = useRef<Session | null>(null)
   const connection = useRef<ReturnType<typeof loadConnection> | null>(null)
@@ -58,6 +59,7 @@ export function ChatDesktopViewer({
   useEffect(() => {
     let cancelled = false
     let active: Session | null = null
+    let expiryTimer: ReturnType<typeof setTimeout> | undefined
     // Cache the request across Strict Mode's effect replay as well as layout
     // changes. Only an explicit reconnect gets another signed URL/client.
     connection.current ??= loadConnection(chatId)
@@ -73,6 +75,7 @@ export function ChatDesktopViewer({
         if (cancelled) return
         if (!result.success) {
           if (isPaidPlanError(result.error)) showUpgrade()
+          if (isUsageLimitError(result.error)) showUsage()
           fail(result.error)
           return
         }
@@ -82,6 +85,16 @@ export function ChatDesktopViewer({
         target.className = "size-full overflow-hidden"
         host.appendChild(target)
         active = createVncSession(target, result.url, Client)
+        expiryTimer = setTimeout(
+          () => {
+            if (cancelled) return
+            fail(
+              "This desktop session ended. Reconnect to book another session."
+            )
+            active?.disconnect()
+          },
+          Math.max(0, Date.parse(result.expiresAt) - Date.now())
+        )
         session.current = active
         active.mount(host, dialogHost.current !== null)
         active.client.addEventListener("connect", () => {
@@ -109,10 +122,11 @@ export function ChatDesktopViewer({
 
     return () => {
       cancelled = true
+      clearTimeout(expiryTimer)
       active?.disconnect()
       if (session.current === active) session.current = null
     }
-  }, [chatId, attempt, showUpgrade])
+  }, [chatId, attempt, showUpgrade, showUsage])
 
   function reconnect() {
     connection.current = null

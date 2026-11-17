@@ -2,9 +2,12 @@
 
 import { auth } from "@clerk/nextjs/server"
 import { z } from "zod"
+import { and, eq } from "drizzle-orm"
 
-import { claimBotSandbox, getAgentContext } from "@/lib/agent/context"
-import { ensureBotSandbox, getDaytonaClient } from "@/lib/agent/sandbox"
+import { getAgentContext } from "@/lib/agent/context"
+import { meteredSandbox } from "@/lib/usage/sandbox"
+import { usageDb } from "@/lib/usage/ledger"
+import { sandboxSlots } from "@/lib/db/schema"
 import { prepareDesktopPreview } from "@/lib/agent/vnc"
 import { sandboxErrorMessage } from "@/lib/agent/sandbox-errors"
 import { getChat } from "@/queries/chat"
@@ -32,13 +35,23 @@ export async function connectChatDesktop(input: unknown) {
     if (!bot || bot.userId !== userId) {
       return { success: false as const, error: "This chat has no bot desktop." }
     }
-    const sandbox = await ensureBotSandbox(
-      bot,
-      getDaytonaClient(),
-      (sandboxId) => claimBotSandbox(bot, sandboxId)
+    const sandbox = await meteredSandbox(bot)
+    const [lease] = await usageDb()
+      .select()
+      .from(sandboxSlots)
+      .where(
+        and(eq(sandboxSlots.botId, bot.id), eq(sandboxSlots.userId, userId))
+      )
+    const remaining = Math.floor(
+      ((lease?.expiresAt?.getTime() ?? 0) - Date.now()) / 1000
     )
-    const preview = await prepareDesktopPreview(sandbox)
-    return { success: true as const, url: preview.url }
+    if (remaining <= 0) throw new Error("The desktop session has expired.")
+    const preview = await prepareDesktopPreview(sandbox, remaining)
+    return {
+      success: true as const,
+      url: preview.url,
+      expiresAt: lease.expiresAt!.toISOString(),
+    }
   } catch (error) {
     console.error("Failed to connect chat desktop", error)
     return {

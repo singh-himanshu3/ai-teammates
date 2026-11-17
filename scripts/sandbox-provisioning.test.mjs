@@ -66,7 +66,8 @@ test("first tool use creates one bot-specific sandbox and persists its ID", asyn
   assert.equal(saved, sandbox.id)
   assert.equal(calls[1][1].name, "teammate-bot-one")
   assert.deepEqual(calls[1][1].labels, sandbox.labels)
-  assert.equal(calls[1][1].autoStopInterval, 5)
+  assert.equal(calls[1][1].autoStopInterval, 1)
+  assert.equal(calls[1][1].autoArchiveInterval, 1)
   assert.equal(calls[1][1].target, process.env.DAYTONA_TARGET || undefined)
 })
 

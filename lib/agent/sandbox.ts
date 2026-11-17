@@ -67,7 +67,8 @@ export async function ensureBotSandbox(
         name,
         target: process.env.DAYTONA_TARGET || undefined,
         labels: { app: "ai-teammates", botId: bot.id },
-        autoStopInterval: 5,
+        autoStopInterval: 1,
+        autoArchiveInterval: 1,
         ...(process.env.DAYTONA_SNAPSHOT
           ? { snapshot: process.env.DAYTONA_SNAPSHOT }
           : {}),

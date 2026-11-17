@@ -1,4 +1,4 @@
-import { UserButton } from "@clerk/nextjs"
+import { AccountButton } from "@/components/account-button"
 import { formatDistanceToNowStrict } from "date-fns"
 import { Suspense } from "react"
 
@@ -95,7 +95,7 @@ export async function AppSidebar() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton render={<div />} size="lg" className="h-8 p-0">
-                <UserButton
+                <AccountButton
                   showName
                   appearance={{
                     elements: {

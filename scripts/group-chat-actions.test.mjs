@@ -44,6 +44,12 @@ const mocks = {
   "@/lib/agent/sandbox": source(
     'export function getDaytonaClient() { throw new Error("Must not connect Daytona for free users"); } export function ensureBotSandbox() { throw new Error("Must not provision a sandbox for free users"); }'
   ),
+  "@/lib/usage/sandbox": source(
+    'export async function meteredSandbox() { throw new Error("Must not provision for free users"); } export async function deleteMeteredSandbox() { throw new Error("Must not delete resources for free users"); }'
+  ),
+  "@/lib/usage/ledger": source(
+    'export function usageDb() { throw new Error("Must not read usage for free users"); }'
+  ),
   ...Object.fromEntries(
     [
       "computer-tools",

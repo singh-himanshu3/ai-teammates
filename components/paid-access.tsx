@@ -26,12 +26,25 @@ export function usePaidAccess() {
   const showUpgrade = useCallback(() => {
     showPaidPlanToast(() => router.push("/pricing"))
   }, [router])
+  const showUsage = useCallback(() => {
+    toast.add({
+      id: "usage-limit",
+      type: "error",
+      title: "Usage limit reached",
+      description: "Check your remaining allowance and reset time.",
+      actionProps: {
+        children: "View usage",
+        onClick: () => router.push("/usage"),
+      },
+      timeout: 8000,
+    })
+  }, [router])
   function guard() {
     if (allowed) return true
     if (isLoaded) showUpgrade()
     return false
   }
-  return { allowed, isLoaded, guard, showUpgrade }
+  return { allowed, isLoaded, guard, showUpgrade, showUsage }
 }
 
 export function PaidAccess({ children }: { children: ReactNode }) {

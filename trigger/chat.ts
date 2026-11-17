@@ -5,6 +5,7 @@ import {
   APICallError,
   RetryError,
   stepCountIs,
+  wrapLanguageModel,
   validateUIMessages,
   type UIMessage,
   type InferUITools,
@@ -12,8 +13,10 @@ import {
 import { z } from "zod"
 
 import { createComputerTools } from "@/lib/agent/computer-tools"
-import { claimBotSandbox, getAgentContext } from "@/lib/agent/context"
-import { ensureBotSandbox, getDaytonaClient } from "@/lib/agent/sandbox"
+import { getAgentContext } from "@/lib/agent/context"
+import { meteredSandbox } from "@/lib/usage/sandbox"
+import { usageMiddleware } from "@/lib/usage/model"
+import { UsageLimitError } from "@/lib/usage/policy"
 import { SandboxSetupError } from "@/lib/agent/sandbox-errors"
 import {
   chatClientDataSchema,
@@ -38,9 +41,7 @@ async function resolveChatSandbox(
 ) {
   const { bot } = await getAgentContext(chatId, botId)
   if (!bot || (!bot.sandboxId && !create)) return null
-  return ensureBotSandbox(bot, getDaytonaClient(), (sandboxId) =>
-    claimBotSandbox(bot, sandboxId)
-  )
+  return meteredSandbox(bot)
 }
 
 const turnState = chat.local<{ handoff: HandoffState }>({
@@ -135,10 +136,14 @@ export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
     }
 
     return streamText({
-      model:
-        provider === "google"
-          ? google("gemini-3.6-flash")
-          : groq("openai/gpt-oss-120b"),
+      model: wrapLanguageModel({
+        model:
+          provider === "google"
+            ? google("gemini-3.6-flash")
+            : groq("openai/gpt-oss-120b"),
+        middleware: usageMiddleware(initialContext.userId, provider),
+      }),
+      maxRetries: 0,
       instructions: buildAgentInstructions(bot, kind, members),
       prepareStep: async ({ stepNumber }) => {
         signal.throwIfAborted()
@@ -187,6 +192,7 @@ export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
     onError(error) {
       console.error("Chat generation failed", error)
       if (error instanceof PaidPlanRequiredError) return error.message
+      if (error instanceof UsageLimitError) return error.message
       if (error instanceof SandboxSetupError) return error.message
       const cause = RetryError.isInstance(error) ? error.lastError : error
       if (APICallError.isInstance(cause)) {

@@ -100,7 +100,8 @@ const hooks = registerHooks({
 })
 const originalKey = process.env.CLERK_SECRET_KEY
 process.env.CLERK_SECRET_KEY = "test-only-placeholder"
-const { assertPaidUser } = await import("../lib/billing/server.ts")
+const { assertPaidUser, getPaidPeriod } =
+  await import("../lib/billing/server.ts")
 const { getAgentContext } = await import("../lib/agent/context.ts")
 after(() => {
   hooks.deregister()
@@ -151,4 +152,25 @@ test("missing, unavailable, and unconfigured billing fails closed", async () => 
   delete process.env.CLERK_SECRET_KEY
   await assert.rejects(assertPaidUser("owner"), /not configured/)
   process.env.CLERK_SECRET_KEY = "test-only-placeholder"
+})
+
+test("usage periods use Clerk's exact paid-period timestamps and reject missing end dates", async () => {
+  state.paid = true
+  const period = await getPaidPeriod("owner")
+  assert.equal(period.userId, "owner")
+  assert.equal(period.startsAt.getTime(), 0)
+  assert.ok(period.endsAt.getTime() > Date.now())
+  const previous = backend.billing.getUserBillingSubscription
+  backend.billing.getUserBillingSubscription = async () => ({
+    subscriptionItems: [{ ...item, periodStart: 0, periodEnd: null }],
+  })
+  try {
+    await assert.rejects(
+      getPaidPeriod("owner"),
+      /billing period could not be verified/
+    )
+  } finally {
+    backend.billing.getUserBillingSubscription = previous
+    state.paid = false
+  }
 })

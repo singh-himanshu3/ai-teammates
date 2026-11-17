@@ -9,6 +9,7 @@ import { z } from "zod"
 import { db } from "@/lib/db"
 import { bots, chatMembers, chats, createBotSchema } from "@/lib/db/schema"
 import { PAID_PLAN, paidPlanFailure } from "@/lib/billing/shared"
+import { deleteMeteredSandbox } from "@/lib/usage/sandbox"
 
 export async function createBot(input: unknown) {
   const { userId, has } = await auth.protect()
@@ -94,6 +95,14 @@ export async function deleteBot(botId: unknown) {
   }
 
   try {
+    const [bot] = await db
+      .select()
+      .from(bots)
+      .where(and(eq(bots.id, parsedId.data), eq(bots.userId, userId)))
+      .limit(1)
+    if (!bot)
+      return { success: false as const, error: "This bot could not be found." }
+    await deleteMeteredSandbox(bot)
     // Remove the bot's direct chats, but preserve shared group chats.
     // The batch is atomic; both mutations independently enforce ownership.
     const directChats = db

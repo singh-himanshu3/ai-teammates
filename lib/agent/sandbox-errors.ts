@@ -1,8 +1,11 @@
+import { UsageLimitError } from "../usage/policy.ts"
+
 export class SandboxSetupError extends Error {}
 
 /** Only known, credential-free messages may leave the server. */
 export function sandboxErrorMessage(error: unknown) {
   if (error instanceof SandboxSetupError) return error.message
+  if (error instanceof UsageLimitError) return error.message
   const status =
     typeof error === "object" && error !== null && "statusCode" in error
       ? error.statusCode

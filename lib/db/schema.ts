@@ -1,6 +1,9 @@
-import { relations } from "drizzle-orm"
+import { relations, sql } from "drizzle-orm"
 import {
   index,
+  check,
+  integer,
+  uniqueIndex,
   pgEnum,
   pgTable,
   primaryKey,
@@ -130,3 +133,71 @@ export const createGroupChatSchema = createInsertSchema(chats, {
 
 export type CreateGroupChatInput = z.infer<typeof createGroupChatSchema>
 export type ChatBotProfile = Pick<Bot, "id" | "name" | "avatar">
+
+// Integer microdollars and seconds; never use floating point account balances.
+export const usagePeriods = pgTable(
+  "usage_periods",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    aiLimit: integer("ai_limit").notNull(),
+    sandboxLimit: integer("sandbox_limit").notNull(),
+    aiDebited: integer("ai_debited").default(0).notNull(),
+    sandboxSeconds: integer("sandbox_seconds").default(0).notNull(),
+  },
+  (t) => [
+    uniqueIndex("usage_user_period_idx").on(t.userId, t.startsAt),
+    check(
+      "usage_ai_budget",
+      sql`${t.aiDebited} >= 0 AND ${t.aiDebited} <= ${t.aiLimit}`
+    ),
+    check(
+      "usage_sandbox_budget",
+      sql`${t.sandboxSeconds} >= 0 AND ${t.sandboxSeconds} <= ${t.sandboxLimit}`
+    ),
+  ]
+)
+
+export const usageEntries = pgTable(
+  "usage_entries",
+  {
+    id: text("id").primaryKey(),
+    periodId: text("period_id")
+      .notNull()
+      .references(() => usagePeriods.id),
+    resource: text("resource").notNull(),
+    description: text("description").notNull(),
+    reserved: integer("reserved").notNull(),
+    amount: integer("amount").notNull(),
+    status: text("status").default("reserved").notNull(),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [index("usage_entries_period_idx").on(t.periodId)]
+)
+
+// Cloud deletion must succeed and release the slot before deleting its bot.
+export const sandboxSlots = pgTable(
+  "sandbox_slots",
+  {
+    userId: text("user_id").notNull(),
+    slot: integer("slot").notNull(),
+    botId: text("bot_id")
+      .notNull()
+      .references(() => bots.id, { onDelete: "restrict" }),
+    sandboxId: text("sandbox_id"),
+    leaseId: text("lease_id"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    state: text("state").default("idle").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.slot] }),
+    uniqueIndex("sandbox_slots_bot_idx").on(t.botId),
+    check("sandbox_slot_limit", sql`${t.slot} BETWEEN 1 AND 3`),
+  ]
+)

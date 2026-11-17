@@ -23,6 +23,7 @@ import { ChatAvatar } from "@/components/chat-avatar"
 import { chatDataSchemas } from "@/lib/chat-client-data"
 import { PaidAccess, usePaidAccess } from "@/components/paid-access"
 import { isPaidPlanError } from "@/lib/billing/shared"
+import { isUsageLimitError } from "@/lib/usage/policy"
 
 import {
   Conversation,
@@ -182,7 +183,7 @@ function ChatConversation({
   const [input, setInput] = useState("")
   const [editingMessageId, setEditingMessageId] = useState<string>()
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const { guard, showUpgrade } = usePaidAccess()
+  const { guard, showUpgrade, showUsage } = usePaidAccess()
   const {
     messages,
     sendMessage,
@@ -197,6 +198,7 @@ function ChatConversation({
     resume: initialMessages.length > 0,
     onError: (error) => {
       if (isPaidPlanError(error)) showUpgrade()
+      if (isUsageLimitError(error)) showUsage()
     },
     dataPartSchemas: chatDataSchemas,
     onData: (part) => {

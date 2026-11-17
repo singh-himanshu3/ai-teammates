@@ -20,7 +20,9 @@ async function Pricing() {
         </h1>
         <p className="text-muted-foreground">
           Pro unlocks bots, group chats, sandbox desktops, and persistent
-          memory. Free accounts cannot create or use bots and sandboxes.
+          memory. Each subscription period includes $5 in AI usage, 20 sandbox
+          hours, and up to 3 stored sandboxes. Free accounts cannot create or
+          use bots and sandboxes.
         </p>
       </div>
       <PricingTable
