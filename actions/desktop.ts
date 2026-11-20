@@ -12,6 +12,7 @@ import { prepareDesktopPreview } from "@/lib/agent/vnc"
 import { sandboxErrorMessage } from "@/lib/agent/sandbox-errors"
 import { getChat } from "@/queries/chat"
 import { PAID_PLAN, paidPlanFailure } from "@/lib/billing/shared"
+import { reportServerError } from "@/lib/monitoring/server"
 
 const chatIdSchema = z.string().trim().min(1).max(100)
 
@@ -54,6 +55,7 @@ export async function connectChatDesktop(input: unknown) {
     }
   } catch (error) {
     console.error("Failed to connect chat desktop", error)
+    reportServerError(error, "connect-desktop")
     return {
       success: false as const,
       error: sandboxErrorMessage(error),

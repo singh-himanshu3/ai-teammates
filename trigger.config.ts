@@ -1,9 +1,21 @@
-import { defineConfig } from "@trigger.dev/sdk";
+import { defineConfig } from "@trigger.dev/sdk"
+import { esbuildPlugin } from "@trigger.dev/build/extensions"
+import { sentryEsbuildPlugin } from "@sentry/esbuild-plugin"
+import {
+  initializeWorkerMonitoring,
+  reportWorkerError,
+} from "./lib/monitoring/worker"
 
 export default defineConfig({
   project: "proj_objfbgnaadgznwrncnou",
   runtime: "node-24",
   logLevel: "log",
+  init: async ({ ctx }) => {
+    initializeWorkerMonitoring(ctx.environment.type)
+  },
+  onFailure: async ({ error, ctx }) => {
+    await reportWorkerError(error, { task: ctx.task.id, runId: ctx.run.id })
+  },
   // The max compute seconds a task is allowed to run. If the task run exceeds this duration, it will be stopped.
   // You can override this on an individual task.
   // See https://trigger.dev/docs/runs/max-duration
@@ -19,4 +31,17 @@ export default defineConfig({
     },
   },
   dirs: ["trigger"],
-});
+  build: {
+    extensions: [
+      esbuildPlugin(
+        sentryEsbuildPlugin({
+          org: "ai-teammates",
+          project: "ai-teammates",
+          authToken: process.env.SENTRY_AUTH_TOKEN,
+          telemetry: false,
+        }),
+        { placement: "last", target: "deploy" }
+      ),
+    ],
+  },
+})

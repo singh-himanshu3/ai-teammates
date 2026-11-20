@@ -25,6 +25,7 @@ const client = {
 globalThis.__groupActionTest = { state, db: drizzle({ client }) }
 const source = (text) => `data:text/javascript,${encodeURIComponent(text)}`
 const mocks = {
+  "@/lib/monitoring/server": source("export function reportServerError() {}"),
   "@clerk/nextjs/server": source(
     'export const auth = { protect: async () => { if (!globalThis.__groupActionTest.state.authenticated) throw new Error("Unauthorized"); return { userId: "owner-one", has: ({ plan }) => plan === "user:pro" && globalThis.__groupActionTest.state.paid }; } };'
   ),

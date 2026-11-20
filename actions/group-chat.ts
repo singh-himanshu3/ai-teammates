@@ -1,4 +1,5 @@
 "use server"
+import { reportServerError } from "@/lib/monitoring/server"
 
 import { auth } from "@clerk/nextjs/server"
 import { and, eq, inArray } from "drizzle-orm"
@@ -51,6 +52,7 @@ export async function createGroupChat(input: unknown) {
     return { success: true as const, chatId: id }
   } catch (error) {
     console.error("Failed to create group chat", error)
+    reportServerError(error, "create-group-chat")
     return {
       success: false as const,
       error: "Your group could not be created. Please try again.",
@@ -123,6 +125,7 @@ export async function updateGroupChat(groupId: unknown, input: unknown) {
     return { success: true as const, chatId: group.id }
   } catch (error) {
     console.error("Failed to update group chat", error)
+    reportServerError(error, "update-group-chat")
     return {
       success: false as const,
       error: "Your group could not be updated. Please try again.",
@@ -157,6 +160,7 @@ export async function deleteGroupChat(groupId: unknown) {
     return { success: true as const }
   } catch (error) {
     console.error("Failed to delete group chat", error)
+    reportServerError(error, "delete-group-chat")
     return {
       success: false as const,
       error: "Your group could not be deleted. Please try again.",

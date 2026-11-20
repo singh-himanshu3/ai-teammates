@@ -10,6 +10,7 @@ import { db } from "@/lib/db"
 import { bots, chatMembers, chats, createBotSchema } from "@/lib/db/schema"
 import { PAID_PLAN, paidPlanFailure } from "@/lib/billing/shared"
 import { deleteMeteredSandbox } from "@/lib/usage/sandbox"
+import { reportServerError } from "@/lib/monitoring/server"
 
 export async function createBot(input: unknown) {
   const { userId, has } = await auth.protect()
@@ -35,6 +36,7 @@ export async function createBot(input: unknown) {
     ])
   } catch (error) {
     console.error("Failed to create bot", error)
+    reportServerError(error, "create-bot")
     return {
       success: false as const,
       error: "Your bot could not be created. Please try again.",
@@ -76,6 +78,7 @@ export async function updateBot(botId: unknown, input: unknown) {
     }
   } catch (error) {
     console.error("Failed to update bot", error)
+    reportServerError(error, "update-bot")
     return {
       success: false as const,
       error: "Your bot could not be updated. Please try again.",
@@ -132,6 +135,7 @@ export async function deleteBot(botId: unknown) {
     }
   } catch (error) {
     console.error("Failed to delete bot", error)
+    reportServerError(error, "delete-bot")
     return {
       success: false as const,
       error: "Your bot could not be deleted. Please try again.",

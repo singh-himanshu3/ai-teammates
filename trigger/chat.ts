@@ -33,6 +33,7 @@ import { buildAgentInstructions } from "@/lib/agent/instructions"
 import { createMemoryTools, loadMemoryContext } from "@/lib/agent/memory"
 import { assertPaidUser } from "@/lib/billing/server"
 import { PaidPlanRequiredError } from "@/lib/billing/shared"
+import { reportWorkerError } from "@/lib/monitoring/worker"
 
 async function resolveChatSandbox(
   chatId: string,
@@ -64,6 +65,10 @@ export type TeammateMessage = UIMessage<
 export const teammateChat = chat.withUIMessage<TeammateMessage>().agent({
   id: "teammate-chat",
   clientDataSchema: chatClientDataSchema,
+  onTurnComplete: async ({ error }) => {
+    if (error)
+      await reportWorkerError(error, { task: "teammate-chat", phase: "turn" })
+  },
   onBoot: () => {
     turnState.init({ handoff: { visited: [] } })
   },
